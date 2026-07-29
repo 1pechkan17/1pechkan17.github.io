@@ -1,0 +1,1778 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Тун Тун Кликер</title>
+
+<!-- ============================================================
+     ЯНДЕКС SDK — подключается тут. На проде, когда зальёшь игру
+     в консоль Яндекс Игр, этот скрипт грузится автоматически с их
+     CDN. Для локального теста он просто тихо не найдётся, и игра
+     переходит в offline-режим (см. YandexIntegration ниже).
+     ============================================================ -->
+<script src="https://sdk.games.s3.yandex.net/sdk.js" onload="window.__ysdkScriptLoaded=true" onerror="window.__ysdkScriptLoaded=false"></script>
+
+<style>
+  :root{
+    --sahar-pink:   #ff5fa2;
+    --sahar-purple: #7b3fe4;
+    --sahar-yellow: #ffd23f;
+    --sahar-cyan:   #2fe6d0;
+    --sahar-dark:   #1a1033;
+    --sahar-cream:  #fff6e8;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; }
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    overflow:hidden; overscroll-behavior:none;
+    background:var(--sahar-dark);
+    font-family:'Baloo 2', 'Comic Sans MS', system-ui, sans-serif;
+    touch-action:manipulation;
+  }
+  @font-face{
+    font-family:'Baloo 2';
+    src:local('Baloo 2');
+  }
+
+  #app{
+    position:fixed; inset:0;
+    padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+    padding-left:var(--safe-left); padding-right:var(--safe-right);
+    display:flex; flex-direction:column;
+    background:
+      radial-gradient(circle at 20% 10%, rgba(255,95,162,.35), transparent 45%),
+      radial-gradient(circle at 85% 85%, rgba(47,230,208,.28), transparent 50%),
+      linear-gradient(180deg, #2a1852 0%, #1a1033 60%, #120a24 100%);
+  }
+
+  /* ---------- ШАПКА: сахарки + доход в секунду ---------- */
+  #topbar{
+    flex:0 0 auto;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px;
+    padding:10px 14px;
+    z-index:5;
+  }
+  .stat-pill{
+    display:flex; align-items:center; gap:8px;
+    background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.05));
+    border:2px solid rgba(255,255,255,.18);
+    border-radius:999px;
+    padding:8px 16px 8px 8px;
+    box-shadow:0 4px 0 rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.2);
+  }
+  .stat-icon{
+    width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px;
+    background:radial-gradient(circle at 35% 30%, #ffe27a, var(--sahar-yellow));
+    box-shadow:0 2px 0 rgba(0,0,0,.3);
+    flex:0 0 auto;
+  }
+  .stat-icon.income{ background:radial-gradient(circle at 35% 30%, #7ef5e6, var(--sahar-cyan)); }
+  .stat-text{ display:flex; flex-direction:column; line-height:1.05; }
+  .stat-value{ font-size:19px; font-weight:800; color:#fff; text-shadow:0 2px 0 rgba(0,0,0,.35); }
+  .stat-label{ font-size:10px; font-weight:700; letter-spacing:.03em; color:rgba(255,255,255,.55); text-transform:uppercase; }
+
+  #menuBtn{
+    width:44px; height:44px; border-radius:14px; border:2px solid rgba(255,255,255,.2);
+    background:linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.05));
+    color:#fff; font-size:20px; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 0 rgba(0,0,0,.25);
+    flex:0 0 auto;
+  }
+  #menuBtn:active{ transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.25); }
+
+  /* ---------- ГЛАВНАЯ СЦЕНА: персонаж по центру ---------- */
+  #stage{
+    flex:1 1 auto;
+    position:relative;
+    display:flex; align-items:center; justify-content:center;
+    min-height:0;
+  }
+
+  #comboWrap{
+    position:absolute; top:6%; left:50%; transform:translateX(-50%);
+    text-align:center; pointer-events:none; z-index:4;
+  }
+  #comboText{
+    font-size:15px; font-weight:800; color:var(--sahar-yellow);
+    text-shadow:0 2px 0 rgba(0,0,0,.4);
+    opacity:0; transition:opacity .2s;
+  }
+  #perClickText{
+    font-size:13px; font-weight:700; color:rgba(255,255,255,.6);
+    margin-top:2px;
+  }
+
+  #charBtn{
+    width:min(58vw, 320px); height:min(58vw, 320px);
+    border-radius:50%;
+    border:6px solid rgba(255,255,255,.9);
+    background:
+      radial-gradient(circle at 32% 28%, #ffe9c2, #ffcf6b 55%, #ff9a3d 100%);
+    box-shadow:
+      0 0 0 10px rgba(255,95,162,.18),
+      0 0 60px rgba(255,95,162,.35),
+      0 14px 0 rgba(0,0,0,.35),
+      inset 0 -18px 30px rgba(0,0,0,.15);
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    position:relative;
+    transition:transform .06s ease-out;
+    cursor:pointer;
+  }
+  #charBtn:active{ transform:scale(.93); }
+  #charBtn.tapAnim{ animation:tapPulse .18s ease-out; }
+  @keyframes tapPulse{
+    0%{ transform:scale(.9); }
+    60%{ transform:scale(1.05); }
+    100%{ transform:scale(1); }
+  }
+
+  #charImg{
+    width:100%; height:100%; object-fit:cover;
+    pointer-events:none;
+  }
+  /* Заглушка-плейсхолдер, если картинки ещё нет — просто эмодзи-акула.
+     Замени содержимое #charImg на свой <img src="assets/tuntun.png">
+     или на свой SVG. Инструкция — в самом низу файла. */
+  #charPlaceholder{
+    font-size:min(30vw, 170px);
+    line-height:1;
+    pointer-events:none;
+    filter:drop-shadow(0 6px 6px rgba(0,0,0,.25));
+  }
+
+  .floatNum{
+    position:absolute;
+    font-weight:800; font-size:22px; color:#fff;
+    text-shadow:0 2px 0 rgba(0,0,0,.4);
+    pointer-events:none;
+    animation:floatUp .8s ease-out forwards;
+    z-index:6;
+  }
+  @keyframes floatUp{
+    0%{ transform:translate(-50%,-50%) scale(.6); opacity:0; }
+    15%{ opacity:1; transform:translate(-50%,-70%) scale(1.15); }
+    100%{ transform:translate(-50%,-160%) scale(1); opacity:0; }
+  }
+
+  /* ---------- НИЖНЯЯ ПАНЕЛЬ ВКЛАДОК ---------- */
+  #tabbar{
+    flex:0 0 auto;
+    display:flex;
+    gap:8px;
+    padding:8px 10px 12px;
+    z-index:5;
+  }
+  .tabBtn{
+    flex:1; padding:12px 4px;
+    border-radius:16px; border:2px solid rgba(255,255,255,.14);
+    background:linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.03));
+    color:rgba(255,255,255,.75);
+    font-weight:800; font-size:11px;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    box-shadow:0 4px 0 rgba(0,0,0,.22);
+  }
+  .tabBtn .tabIcon{ font-size:18px; }
+  .tabBtn.active{
+    color:#1a1033;
+    background:linear-gradient(180deg, var(--sahar-yellow), #ffb238);
+    border-color:rgba(255,255,255,.5);
+  }
+  .tabBtn:active{ transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.22); }
+
+  /* ---------- ПАНЕЛЬ УЛУЧШЕНИЙ / МАГАЗИНА (выезжает снизу) ---------- */
+  #sheetOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.45);
+    opacity:0; pointer-events:none; transition:opacity .2s;
+    z-index:8;
+  }
+  #sheetOverlay.open{ opacity:1; pointer-events:auto; }
+
+  #sheet{
+    position:fixed; left:0; right:0; bottom:0;
+    max-height:78vh;
+    background:linear-gradient(180deg, #2e1a55, #1d1038);
+    border-radius:26px 26px 0 0;
+    border:2px solid rgba(255,255,255,.14);
+    border-bottom:none;
+    transform:translateY(105%);
+    transition:transform .25s cubic-bezier(.2,.9,.3,1.2);
+    z-index:9;
+    display:flex; flex-direction:column;
+    padding-bottom:calc(14px + var(--safe-bottom));
+  }
+  #sheet.open{ transform:translateY(0); }
+
+  #sheetHandle{
+    width:44px; height:5px; border-radius:3px; background:rgba(255,255,255,.25);
+    margin:10px auto 4px;
+  }
+  #sheetTitle{
+    text-align:center; color:#fff; font-weight:800; font-size:17px;
+    padding:2px 0 10px;
+  }
+  #sheetList{
+    overflow-y:auto; padding:0 12px 10px; display:flex; flex-direction:column; gap:10px;
+  }
+
+  .itemRow{
+    display:flex; align-items:center; gap:12px;
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    border:2px solid rgba(255,255,255,.1);
+    border-radius:18px;
+    padding:10px 12px;
+  }
+  .itemIcon{
+    width:48px; height:48px; border-radius:14px; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center; font-size:26px;
+    background:linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04));
+    border:2px solid rgba(255,255,255,.14);
+  }
+  .itemInfo{ flex:1; min-width:0; }
+  .itemName{ color:#fff; font-weight:800; font-size:14.5px; }
+  .itemDesc{ color:rgba(255,255,255,.55); font-size:11.5px; margin-top:1px; }
+  .itemLevel{ color:var(--sahar-cyan); font-size:11px; font-weight:700; margin-top:2px; }
+  .itemBuyBtn{
+    flex:0 0 auto; min-width:84px;
+    padding:10px 10px; border-radius:14px; border:none;
+    font-weight:800; font-size:13px; text-align:center;
+    background:linear-gradient(180deg, var(--sahar-yellow), #ffb238);
+    color:#3a2400;
+    box-shadow:0 3px 0 rgba(0,0,0,.28);
+  }
+  .itemBuyBtn:active{ transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.28); }
+  .itemBuyBtn.disabled{
+    background:linear-gradient(180deg, #555, #3a3a3a); color:rgba(255,255,255,.4);
+    box-shadow:0 3px 0 rgba(0,0,0,.2);
+  }
+
+  /* ---------- КНОПКА РЕКЛАМЫ ЗА НАГРАДУ ---------- */
+  #rvBanner{
+    margin:0 12px 10px;
+    padding:12px 14px; border-radius:18px;
+    background:linear-gradient(90deg, var(--sahar-pink), var(--sahar-purple));
+    display:flex; align-items:center; gap:10px;
+    box-shadow:0 4px 0 rgba(0,0,0,.3);
+  }
+  #rvBanner .rvIcon{ font-size:24px; }
+  #rvBanner .rvText{ flex:1; color:#fff; font-size:12.5px; font-weight:700; line-height:1.25; }
+  #rvBanner .rvGo{
+    background:#fff; color:var(--sahar-purple); font-weight:800; font-size:12.5px;
+    padding:8px 12px; border-radius:12px; flex:0 0 auto;
+  }
+
+  /* ---------- ЗАГЛУШКА ПОВОРОТА (портрет/ландшафт) ---------- */
+  #rotateGuard{
+    position:fixed; inset:0; background:var(--sahar-dark);
+    z-index:999; display:none;
+    align-items:center; justify-content:center; flex-direction:column; gap:14px;
+    color:#fff; text-align:center; padding:20px;
+  }
+  #rotateGuard .rIcon{ font-size:54px; }
+
+  /* мелкий скроллбар для панелей */
+  #sheetList::-webkit-scrollbar{ width:6px; }
+  #sheetList::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.2); border-radius:3px; }
+
+  /* ---------- ЕЖЕДНЕВНЫЙ БОНУС (тост сверху при заходе) ---------- */
+  #dailyToast{
+    position:fixed; left:0; right:0; top:0;
+    display:flex; justify-content:center;
+    padding-top:calc(14px + var(--safe-top));
+    z-index:20;
+    pointer-events:none;
+    opacity:0; transform:translateY(-20px);
+    transition:opacity .25s, transform .25s;
+  }
+  #dailyToast.show{ opacity:1; transform:translateY(0); pointer-events:auto; }
+  #dailyToastInner{
+    display:flex; align-items:center; gap:12px;
+    background:linear-gradient(135deg, var(--sahar-purple), var(--sahar-pink));
+    border:2px solid rgba(255,255,255,.4);
+    border-radius:20px;
+    padding:12px 14px;
+    box-shadow:0 8px 0 rgba(0,0,0,.3), 0 0 40px rgba(255,95,162,.4);
+    max-width:min(92vw, 420px);
+  }
+  #dailyToastIcon{ font-size:32px; flex:0 0 auto; }
+  #dailyToastTitle{ color:#fff; font-weight:800; font-size:15px; }
+  #dailyToastSub{ color:rgba(255,255,255,.85); font-size:12px; margin-top:1px; }
+  #dailyToastClaim{
+    flex:0 0 auto; background:#fff; color:var(--sahar-purple);
+    font-weight:800; font-size:13px; padding:9px 14px; border-radius:12px;
+    box-shadow:0 3px 0 rgba(0,0,0,.2);
+  }
+  #dailyToastClaim:active{ transform:translateY(2px); box-shadow:none; }
+
+  /* ---------- ТОСТ АЧИВКИ (маленький, снизу-сверху таббара) ---------- */
+  #achToast{
+    position:fixed; left:50%; bottom:100px;
+    transform:translate(-50%, 20px);
+    display:flex; align-items:center; gap:10px;
+    background:linear-gradient(135deg, #2e1a55, #1d1038);
+    border:2px solid var(--sahar-yellow);
+    border-radius:16px; padding:10px 16px 10px 10px;
+    box-shadow:0 6px 0 rgba(0,0,0,.3), 0 0 30px rgba(255,210,63,.3);
+    opacity:0; pointer-events:none;
+    transition:opacity .25s, transform .25s;
+    z-index:25;
+    max-width:min(88vw, 380px);
+  }
+  #achToast.show{ opacity:1; transform:translate(-50%, 0); }
+  .achToastIcon{
+    width:38px; height:38px; border-radius:12px; flex:0 0 auto;
+    background:radial-gradient(circle at 35% 30%, #ffe27a, var(--sahar-yellow));
+    display:flex; align-items:center; justify-content:center; font-size:20px;
+  }
+  .achToastLabel{ color:var(--sahar-yellow); font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; }
+  .achToastName{ color:#fff; font-size:13.5px; font-weight:700; }
+
+  /* ---------- КАРТОЧКИ АЧИВОК ---------- */
+  .achRow{
+    display:flex; align-items:center; gap:12px;
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    border:2px solid rgba(255,255,255,.1);
+    border-radius:18px;
+    padding:10px 12px;
+  }
+  .achRow.locked{ opacity:.45; }
+  .achRow.done{ border-color:var(--sahar-yellow); }
+  .achIcon{
+    width:48px; height:48px; border-radius:14px; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center; font-size:24px;
+    background:linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04));
+    border:2px solid rgba(255,255,255,.14);
+  }
+  .achRow.done .achIcon{ background:linear-gradient(180deg, #ffe27a, var(--sahar-yellow)); }
+  .achInfo{ flex:1; min-width:0; }
+  .achName{ color:#fff; font-weight:800; font-size:14px; }
+  .achDesc{ color:rgba(255,255,255,.55); font-size:11.5px; margin-top:1px; }
+  .achCheck{ font-size:22px; flex:0 0 auto; }
+
+  /* ---------- ПАНЕЛЬ НАСТРОЕК ---------- */
+  #settingsOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.5);
+    opacity:0; pointer-events:none; transition:opacity .2s;
+    z-index:28;
+  }
+  #settingsOverlay.open{ opacity:1; pointer-events:auto; }
+  #settingsPanel{
+    position:fixed; left:50%; top:50%;
+    transform:translate(-50%,-50%) scale(.9);
+    width:min(88vw, 340px);
+    background:linear-gradient(180deg, #2e1a55, #1d1038);
+    border:2px solid rgba(255,255,255,.16);
+    border-radius:22px;
+    padding:18px;
+    opacity:0; pointer-events:none;
+    transition:opacity .2s, transform .2s;
+    z-index:29;
+  }
+  #settingsPanel.open{ opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+  #settingsPanelTitle{ color:#fff; font-weight:800; font-size:17px; text-align:center; margin-bottom:8px; }
+  .setRow{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 4px; border-bottom:1px solid rgba(255,255,255,.08);
+    color:#fff; font-weight:700; font-size:14px;
+  }
+  .setRow:last-of-type{ border-bottom:none; }
+  .setLabel{ display:flex; align-items:center; gap:8px; }
+  #settingsCloseBtn{
+    width:100%; margin-top:10px; padding:11px; border-radius:14px;
+    background:linear-gradient(180deg, var(--sahar-yellow), #ffb238);
+    color:#3a2400; font-weight:800; font-size:14px;
+    box-shadow:0 3px 0 rgba(0,0,0,.25);
+  }
+  #settingsCloseBtn:active{ transform:translateY(2px); box-shadow:none; }
+  .toggleBtn{
+    width:52px; height:30px; border-radius:16px; position:relative;
+    background:rgba(255,255,255,.15); border:2px solid rgba(255,255,255,.2);
+    flex:0 0 auto;
+  }
+  .toggleBtn .knob{
+    position:absolute; top:2px; left:2px; width:22px; height:22px; border-radius:50%;
+    background:#888; transition:left .15s, background .15s;
+  }
+  .toggleBtn.on{ background:rgba(47,230,208,.35); }
+  .toggleBtn.on .knob{ left:24px; background:var(--sahar-cyan); }
+
+  /* ---------- КНОПКА СБРОСА ПРОГРЕССА ---------- */
+  #resetProgressBtn{
+    width:100%; margin-top:14px; padding:10px; border-radius:14px;
+    background:rgba(255,80,80,.12); border:2px solid rgba(255,80,80,.3);
+    color:rgba(255,140,140,.9); font-weight:700; font-size:12.5px;
+  }
+  #resetProgressBtn:active{ background:rgba(255,80,80,.2); }
+
+  /* ---------- МОДАЛКА ПОДТВЕРЖДЕНИЯ СБРОСА ---------- */
+  #resetConfirmOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.6);
+    opacity:0; pointer-events:none; transition:opacity .2s;
+    z-index:38;
+  }
+  #resetConfirmOverlay.open{ opacity:1; pointer-events:auto; }
+  #resetConfirmPanel{
+    position:fixed; left:50%; top:50%;
+    transform:translate(-50%,-50%) scale(.9);
+    width:min(86vw, 320px);
+    background:linear-gradient(180deg, #3a1a1a, #24100f);
+    border:2px solid rgba(255,120,120,.4);
+    border-radius:22px;
+    padding:20px 18px;
+    text-align:center;
+    opacity:0; pointer-events:none;
+    transition:opacity .2s, transform .2s;
+    z-index:39;
+  }
+  #resetConfirmPanel.open{ opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+  #resetConfirmIcon{ font-size:38px; margin-bottom:6px; }
+  #resetConfirmTitle{ color:#fff; font-weight:800; font-size:15.5px; margin-bottom:6px; }
+  #resetConfirmSub{ color:rgba(255,255,255,.6); font-size:12px; line-height:1.4; margin-bottom:16px; }
+  #resetConfirmButtons{ display:flex; gap:10px; }
+  #resetConfirmButtons button{
+    flex:1; padding:11px; border-radius:14px; font-weight:800; font-size:13.5px;
+  }
+  #resetConfirmCancel{
+    background:rgba(255,255,255,.1); color:#fff; border:2px solid rgba(255,255,255,.15);
+  }
+  #resetConfirmYes{
+    background:linear-gradient(180deg, #ff6b6b, #e04040); color:#fff;
+    box-shadow:0 3px 0 rgba(0,0,0,.3);
+  }
+  #resetConfirmYes:active{ transform:translateY(2px); box-shadow:none; }
+</style>
+</head>
+<body>
+
+<!-- Аудио-файлы: preload="auto" грузит их сразу, чтобы не было задержки
+     при первом проигрывании. tapSound — голосовая фраза персонажа на каждый
+     тап, achSound67 — отдельный звук именно для ачивки "Тун Тун Сахур 67". -->
+<audio id="tapSound" src="assets/tap-sound.mp3" preload="auto"></audio>
+<audio id="achSound67" src="assets/achievement-sound.mp3" preload="auto"></audio>
+
+<div id="app">
+
+  <!-- ШАПКА -->
+  <div id="topbar">
+    <div class="stat-pill">
+      <div class="stat-icon">🍬</div>
+      <div class="stat-text">
+        <span class="stat-value" id="balanceText">0</span>
+        <span class="stat-label" id="lblSaharki">сахарки</span>
+      </div>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-icon income">⏱️</div>
+      <div class="stat-text">
+        <span class="stat-value" id="incomeText">0/с</span>
+        <span class="stat-label" id="lblPassive">в секунду</span>
+      </div>
+    </div>
+    <button id="menuBtn">⚙️</button>
+  </div>
+
+  <!-- Плашка "получи ежедневный бонус", всплывает при заходе если стрик доступен -->
+  <div id="dailyToast">
+    <div id="dailyToastInner">
+      <div id="dailyToastIcon">🎁</div>
+      <div id="dailyToastText">
+        <div id="dailyToastTitle">Ежедневный бонус!</div>
+        <div id="dailyToastSub"></div>
+      </div>
+      <button id="dailyToastClaim">Забрать</button>
+    </div>
+  </div>
+
+  <!-- Тост ачивки — коротко всплывает и гаснет -->
+  <div id="achToast">
+    <div class="achToastIcon" id="achToastIcon">🏆</div>
+    <div class="achToastText">
+      <div class="achToastLabel" id="achToastLabel">Ачивка получена!</div>
+      <div class="achToastName" id="achToastName"></div>
+    </div>
+  </div>
+
+  <!-- ГЛАВНАЯ СЦЕНА -->
+  <div id="stage">
+    <div id="comboWrap">
+      <div id="comboText"></div>
+      <div id="perClickText"></div>
+    </div>
+
+    <button id="charBtn" aria-label="Тапни по Тун Тун Сахуру">
+      <img id="charImg" src="assets/tuntun.png" alt="">
+    </button>
+  </div>
+
+  <!-- НИЖНИЕ ВКЛАДКИ -->
+  <div id="tabbar">
+    <button class="tabBtn active" data-tab="upgrades">
+      <span class="tabIcon">⬆️</span><span id="tabUpgrades">Улучшения</span>
+    </button>
+    <button class="tabBtn" data-tab="shop">
+      <span class="tabIcon">🛒</span><span id="tabShop">Магазин</span>
+    </button>
+    <button class="tabBtn" data-tab="achievements">
+      <span class="tabIcon">🏆</span><span id="tabAch">Ачивки</span>
+    </button>
+    <button class="tabBtn" data-tab="stats">
+      <span class="tabIcon">📊</span><span id="tabStats">Статистика</span>
+    </button>
+  </div>
+</div>
+
+<!-- ВЫЕЗЖАЮЩАЯ ПАНЕЛЬ -->
+<div id="sheetOverlay"></div>
+<div id="sheet">
+  <div id="sheetHandle"></div>
+  <div id="sheetTitle">Улучшения</div>
+  <div id="rvBanner" style="display:none">
+    <div class="rvIcon">🎬</div>
+    <div class="rvText" id="rvText">Посмотри рекламу — получи бонусные сахарки!</div>
+    <button class="rvGo" id="rvGoBtn">Смотреть</button>
+  </div>
+  <div id="sheetList"></div>
+</div>
+
+<!-- ПАНЕЛЬ НАСТРОЕК (по шестерёнке) -->
+<div id="settingsOverlay"></div>
+<div id="settingsPanel">
+  <div id="settingsPanelTitle">Настройки</div>
+  <div class="setRow">
+    <span class="setLabel">🔊 Звук тапов</span>
+    <button class="toggleBtn on" id="toggleSfx"><div class="knob"></div></button>
+  </div>
+  <div class="setRow">
+    <span class="setLabel">🎵 Музыка</span>
+    <button class="toggleBtn on" id="toggleMusic"><div class="knob"></div></button>
+  </div>
+  <button id="resetProgressBtn">🗑️ Сбросить прогресс (для теста)</button>
+  <button id="settingsCloseBtn">Закрыть</button>
+</div>
+
+<!-- Подтверждение сброса — отдельная модалка поверх настроек, чтобы
+     нельзя было стереть прогресс одним случайным тапом -->
+<div id="resetConfirmOverlay"></div>
+<div id="resetConfirmPanel">
+  <div id="resetConfirmIcon">⚠️</div>
+  <div id="resetConfirmTitle">Точно сбросить весь прогресс?</div>
+  <div id="resetConfirmSub">Баланс, апгрейды, магазин и ачивки обнулятся. Это нельзя отменить.</div>
+  <div id="resetConfirmButtons">
+    <button id="resetConfirmCancel">Отмена</button>
+    <button id="resetConfirmYes">Да, сбросить</button>
+  </div>
+</div>
+
+<!-- ЗАГЛУШКА ПОВОРОТА ЭКРАНА -->
+<div id="rotateGuard">
+  <div class="rIcon">📱</div>
+  <div id="rotateText">Поверни телефон, чтобы продолжить игру</div>
+</div>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   ЧАСТЬ 1. ИНТЕГРАЦИЯ С YANDEX GAMES SDK
+   Инициализация строго по документации: ждём загрузки скрипта sdk.js,
+   вызываем YaGames.init(), после готовности сцены дергаем
+   ysdk.features.LoadingAPI.ready() — это обязательный пункт модерации
+   (п.1.19.2 требований). Если SDK недоступен (например, ты тестируешь
+   локально в браузере, а не через консоль Яндекса), игра не падает —
+   переходит в offline-режим и работает на localStorage.
+   ========================================================================= */
+const YandexIntegration = (function(){
+  let ysdk = null;
+  let ready = false;
+  let player = null;
+  let lang = 'ru';
+
+  function init(onDone){
+    if (typeof YaGames === 'undefined'){
+      // SDK не загрузился (локальный тест вне площадки) — работаем оффлайн
+      console.warn('[Yandex SDK] не найден, offline-режим');
+      onDone(false);
+      return;
+    }
+    YaGames.init().then(function(sdk){
+      ysdk = sdk;
+      ready = true;
+      lang = (ysdk.environment && ysdk.environment.i18n && ysdk.environment.i18n.lang) || 'ru';
+      console.log('[Yandex SDK] инициализирован, язык:', lang);
+
+      // Игровой прогресс через встроенный игрок SDK, если доступен
+      if (ysdk.getPlayer){
+        ysdk.getPlayer({ scopes:false }).then(function(p){
+          player = p;
+          onDone(true);
+        }).catch(function(){
+          onDone(true);
+        });
+      } else {
+        onDone(true);
+      }
+    }).catch(function(err){
+      console.warn('[Yandex SDK] ошибка инициализации:', err);
+      onDone(false);
+    });
+  }
+
+  // Обязательный вызов — сообщаем платформе, что игра готова к показу.
+  function gameReady(){
+    if (ready && ysdk && ysdk.features && ysdk.features.LoadingAPI){
+      ysdk.features.LoadingAPI.ready();
+    }
+  }
+
+  // Разметка геймплея (необязательна, но раз используем — строго по правилам)
+  function gameplayStart(){
+    if (ready && ysdk && ysdk.features && ysdk.features.GameplayAPI){
+      ysdk.features.GameplayAPI.start();
+    }
+  }
+  function gameplayStop(){
+    if (ready && ysdk && ysdk.features && ysdk.features.GameplayAPI){
+      ysdk.features.GameplayAPI.stop();
+    }
+  }
+
+  // Реклама за вознаграждение (rewarded video)
+  function showRewarded(onReward, onClose){
+    if (!ready || !ysdk || !ysdk.adv){
+      // offline-заглушка для теста без площадки
+      console.log('[Yandex SDK] rewarded недоступен offline — тестовая награда');
+      onReward();
+      if (onClose) onClose();
+      return;
+    }
+    gameplayStop();
+    ysdk.adv.showRewardedVideo({
+      callbacks:{
+        onRewarded: function(){ onReward(); },
+        onClose: function(){ gameplayStart(); if (onClose) onClose(); },
+        onError: function(e){ console.warn('[Yandex SDK] reward error', e); gameplayStart(); }
+      }
+    });
+  }
+
+  // Сохранение прогресса. Если есть игрок SDK — кладём и туда (кроссдевайсно),
+  // плюс всегда дублируем в localStorage — из требований п.1.9: обновление
+  // страницы не должно ронять сохранёнку.
+  function saveData(dataObj){
+    const json = JSON.stringify(dataObj);
+    try { localStorage.setItem('tuntun_save', json); } catch(e){}
+    if (ready && player && player.setData){
+      player.setData(dataObj, true).catch(function(){});
+    }
+  }
+
+  function loadData(callback){
+    if (ready && player && player.getData){
+      player.getData().then(function(data){
+        if (data && Object.keys(data).length){
+          callback(data);
+        } else {
+          callback(loadLocal());
+        }
+      }).catch(function(){ callback(loadLocal()); });
+    } else {
+      callback(loadLocal());
+    }
+  }
+
+  function loadLocal(){
+    try {
+      const raw = localStorage.getItem('tuntun_save');
+      return raw ? JSON.parse(raw) : null;
+    } catch(e){ return null; }
+  }
+
+  function getLang(){ return lang; }
+
+  return { init, gameReady, gameplayStart, gameplayStop, showRewarded, saveData, loadData, getLang };
+})();
+
+
+/* =========================================================================
+   ЧАСТЬ 2. ЛОКАЛИЗАЦИЯ (минимум — русский + английский, п.2.10 требований:
+   нужен хотя бы 1 язык + автоопределение через SDK, п.2.14)
+   ========================================================================= */
+const STRINGS = {
+  ru:{
+    saharki:'сахарки', perSec:'в секунду', upgrades:'Улучшения', shop:'Магазин', stats:'Статистика',
+    achievements:'Ачивки', tabAchLabel:'Ачивки',
+    tapPower:'Сила тапа', tapPowerDesc:'Каждый тап приносит больше сахарков',
+    passiveIncome:'Пассивный доход', passiveIncomeDesc:'Тун Тун сам копит сахарки, пока ты не в игре',
+    critChance:'Шанс крита', critChanceDesc:'Иногда тап даёт х3 сахарков',
+    buy:'Купить', max:'МАКС', rvOffer:'Посмотри рекламу — получи 60 сек ×2 к доходу!', watch:'Смотреть',
+    rvOfferShort:'Не хватает сахарков? Посмотри рекламу — получи пачку прямо сейчас!',
+    shopBita:'Бита тун-тун', shopBitaDesc:'Даёт Тун Туну +1 к силе тапа за плюшки',
+    shopHat:'Кепка сахура', shopHatDesc:'Стильно и +2 к силе тапа',
+    shopBoots:'Кроссы брейнрота', shopBootsDesc:'Ускоряют пассивный доход на 15%',
+    shopCrown:'Корона сахарка', shopCrownDesc:'+50% ко всему доходу, красиво блестит',
+    statsTitle:'Твоя статистика', totalClicks:'Всего тапов', totalEarned:'Всего заработано',
+    totalTime:'Время в игре', level:'Уровень', settings:'Настройки', sound:'Звук', language:'Язык',
+    close:'Закрыть',
+    dailyTitle:'Ежедневный бонус!', dailyClaim:'Забрать', dailySub:'День {n} подряд — держи сахарки!',
+    achToastLabel:'Ачивка получена!'
+  },
+  en:{
+    saharki:'sugar coins', perSec:'per second', upgrades:'Upgrades', shop:'Shop', stats:'Stats',
+    achievements:'Achievements', tabAchLabel:'Achievements',
+    tapPower:'Tap power', tapPowerDesc:'Each tap earns more sugar coins',
+    passiveIncome:'Passive income', passiveIncomeDesc:'Tun Tun collects coins while you are away',
+    critChance:'Crit chance', critChanceDesc:'Sometimes a tap gives x3 coins',
+    buy:'Buy', max:'MAX', rvOffer:'Watch an ad for 60 sec of ×2 income!', watch:'Watch',
+    rvOfferShort:'Short on coins? Watch an ad for an instant pack!',
+    shopBita:"Tun Tun bat", shopBitaDesc:'Gives Tun Tun +1 tap power for treats',
+    shopHat:'Sahur cap', shopHatDesc:'Stylish and +2 tap power',
+    shopBoots:'Brainrot sneakers', shopBootsDesc:'Speeds up passive income by 15%',
+    shopCrown:'Sugar crown', shopCrownDesc:'+50% to all income, shiny too',
+    statsTitle:'Your stats', totalClicks:'Total taps', totalEarned:'Total earned',
+    totalTime:'Time played', level:'Level', settings:'Settings', sound:'Sound', language:'Language',
+    close:'Close',
+    dailyTitle:'Daily bonus!', dailyClaim:'Claim', dailySub:'Day {n} streak — here are your coins!',
+    achToastLabel:'Achievement unlocked!'
+  }
+};
+let L = STRINGS.ru;
+
+function applyStaticLabels(){
+  document.getElementById('lblSaharki').textContent = L.saharki;
+  document.getElementById('lblPassive').textContent = L.perSec;
+  document.getElementById('tabUpgrades').textContent = L.upgrades;
+  document.getElementById('tabShop').textContent = L.shop;
+  document.getElementById('tabAch').textContent = L.tabAchLabel;
+  document.getElementById('tabStats').textContent = L.stats;
+}
+
+
+/* =========================================================================
+   ЧАСТЬ 3. ИГРОВОЕ СОСТОЯНИЕ
+   ========================================================================= */
+const state = {
+  balance: 0,
+  totalEarned: 0,
+  totalClicks: 0,
+  startedAt: Date.now(),
+  perClick: 1,
+  perSecond: 0,
+  critChance: 0.05,     // 5% шанс крита по умолчанию
+  critMultiplier: 3,
+  doubleIncomeUntil: 0, // timestamp, до которого действует х2 от рекламы
+  maxCombo: 0,          // лучший комбо-стрик тапов подряд за всю игру
+
+  // Ежедневный бонус: streak — сколько дней подряд заходил,
+  // lastClaimDay — календарный день (YYYY-MM-DD) последнего забора
+  dailyStreak: 0,
+  lastClaimDay: null,
+  dailyPending: false, // true, если сегодняшний бонус ещё не забран
+
+  // Настройки звука (сохраняются вместе с прогрессом)
+  sfxOn: true,
+  musicOn: true,
+
+  // Разблокированные ачивки (ключи из ACHIEVEMENTS ниже)
+  unlockedAch: {},
+
+  upgrades: {
+    tapPower:      { level:0, baseCost:15,  costMul:1.15, baseValue:1,   valuePerLevel:1 },
+    passiveIncome: { level:0, baseCost:40,  costMul:1.17, baseValue:0,   valuePerLevel:1 },
+    critChance:    { level:0, baseCost:80,  costMul:1.22, baseValue:0.05,valuePerLevel:0.02, cap:10 }
+  },
+
+  shopItems: {
+    bita:  { owned:false, cost:250,  tapBonus:1 },
+    hat:   { owned:false, cost:600,  tapBonus:2 },
+    boots: { owned:false, cost:1200, passiveBoostPct:0.15 },
+    crown: { owned:false, cost:3000, allIncomeBoostPct:0.50 }
+  }
+};
+
+function costFor(up){
+  return Math.ceil(up.baseCost * Math.pow(up.costMul, up.level));
+}
+
+function recalcDerived(){
+  // сила тапа = база + уровни апгрейда + бонусы предметов магазина
+  let tap = 1 + state.upgrades.tapPower.level * state.upgrades.tapPower.valuePerLevel;
+  if (state.shopItems.bita.owned) tap += state.shopItems.bita.tapBonus;
+  if (state.shopItems.hat.owned)  tap += state.shopItems.hat.tapBonus;
+
+  let passive = state.upgrades.passiveIncome.level * state.upgrades.passiveIncome.valuePerLevel;
+  if (state.shopItems.boots.owned) passive *= (1 + state.shopItems.boots.passiveBoostPct);
+
+  let crit = Math.min(
+    state.upgrades.critChance.baseValue + state.upgrades.critChance.level * state.upgrades.critChance.valuePerLevel,
+    state.upgrades.critChance.cap ? (state.upgrades.critChance.baseValue + state.upgrades.critChance.cap * state.upgrades.critChance.valuePerLevel) : 1
+  );
+
+  let allBoost = 1;
+  if (state.shopItems.crown.owned) allBoost += state.shopItems.crown.allIncomeBoostPct;
+
+  const activeDouble = Date.now() < state.doubleIncomeUntil ? 2 : 1;
+
+  state.perClick = Math.max(1, Math.round(tap * allBoost * activeDouble));
+  state.perSecond = Math.round(passive * allBoost * activeDouble * 10) / 10;
+  state.critChance = crit;
+}
+
+
+/* =========================================================================
+   ЧАСТЬ 3.5. АЧИВКИ — мемные, но безобидные, детский брейнрот-юмор.
+   Каждая ачивка проверяется функцией check(state) → true/false.
+   Порядок в объекте = порядок отображения в списке.
+   ========================================================================= */
+const ACHIEVEMENTS = {
+  first_tap:      { icon:'👆', name:'Первый тап', desc:'Тапни первый раз',
+                     check:function(s){ return s.totalClicks >= 1; } },
+  clicks_100:     { icon:'🔥', name:'Сахарная лихорадка', desc:'Сделай 100 тапов',
+                     check:function(s){ return s.totalClicks >= 100; } },
+  clicks_1000:    { icon:'⚡', name:'Тапалка не глушится', desc:'Сделай 1000 тапов',
+                     check:function(s){ return s.totalClicks >= 1000; } },
+  clicks_6767:    { icon:'🗿', name:'Тун Тун Сахур 67', desc:'Сделай 67 тапов подряд без остановки',
+                     check:function(s){ return s.maxCombo >= 67; } },
+  earn_1000:      { icon:'🍬', name:'Первая тыща', desc:'Заработай 1000 сахарков за всё время',
+                     check:function(s){ return s.totalEarned >= 1000; } },
+  earn_67000:     { icon:'💎', name:'Итальяно брейнрото', desc:'Заработай 67 000 сахарков',
+                     check:function(s){ return s.totalEarned >= 67000; } },
+  buy_bita:       { icon:'🏏', name:'Вооружён и сахарен', desc:'Купи биту в магазине',
+                     check:function(s){ return s.shopItems.bita.owned; } },
+  buy_all_shop:   { icon:'👑', name:'Король брейнрота', desc:'Скупи весь магазин',
+                     check:function(s){ return s.shopItems.bita.owned && s.shopItems.hat.owned && s.shopItems.boots.owned && s.shopItems.crown.owned; } },
+  crit_master:    { icon:'✨', name:'Криткое чувство', desc:'Прокачай шанс крита до максимума',
+                     check:function(s){ return s.upgrades.critChance.level >= s.upgrades.critChance.cap; } },
+  streak_3:       { icon:'📅', name:'Верный сахурец', desc:'Заходи в игру 3 дня подряд',
+                     check:function(s){ return s.dailyStreak >= 3; } },
+  streak_7:       { icon:'🏆', name:'Неделя брейнрота', desc:'Заходи в игру 7 дней подряд',
+                     check:function(s){ return s.dailyStreak >= 7; } }
+};
+
+function checkAchievements(){
+  const newlyUnlocked = [];
+  for (const key in ACHIEVEMENTS){
+    if (state.unlockedAch[key]) continue; // уже получена раньше
+    if (ACHIEVEMENTS[key].check(state)){
+      state.unlockedAch[key] = true;
+      newlyUnlocked.push(key);
+    }
+  }
+  if (newlyUnlocked.length){
+    newlyUnlocked.forEach(function(key){ queueAchToast(key); });
+    scheduleSave();
+  }
+}
+
+
+/* =========================================================================
+   ЧАСТЬ 4. СОХРАНЕНИЕ / ЗАГРУЗКА
+   ========================================================================= */
+function serializeState(){
+  return {
+    balance: state.balance,
+    totalEarned: state.totalEarned,
+    totalClicks: state.totalClicks,
+    startedAt: state.startedAt,
+    lastSavedAt: Date.now(),
+    dailyStreak: state.dailyStreak,
+    lastClaimDay: state.lastClaimDay,
+    maxCombo: state.maxCombo,
+    sfxOn: state.sfxOn,
+    musicOn: state.musicOn,
+    unlockedAch: state.unlockedAch,
+    upgrades: {
+      tapPower: state.upgrades.tapPower.level,
+      passiveIncome: state.upgrades.passiveIncome.level,
+      critChance: state.upgrades.critChance.level
+    },
+    shop: {
+      bita: state.shopItems.bita.owned,
+      hat: state.shopItems.hat.owned,
+      boots: state.shopItems.boots.owned,
+      crown: state.shopItems.crown.owned
+    }
+  };
+}
+
+function applySavedData(data){
+  if (!data) return;
+  state.balance = data.balance || 0;
+  state.totalEarned = data.totalEarned || 0;
+  state.totalClicks = data.totalClicks || 0;
+  state.startedAt = data.startedAt || Date.now();
+  state.dailyStreak = data.dailyStreak || 0;
+  state.lastClaimDay = data.lastClaimDay || null;
+  state.maxCombo = data.maxCombo || 0;
+  state.sfxOn = data.sfxOn !== undefined ? data.sfxOn : true;
+  state.musicOn = data.musicOn !== undefined ? data.musicOn : true;
+  state.unlockedAch = data.unlockedAch || {};
+
+  if (data.upgrades){
+    state.upgrades.tapPower.level = data.upgrades.tapPower || 0;
+    state.upgrades.passiveIncome.level = data.upgrades.passiveIncome || 0;
+    state.upgrades.critChance.level = data.upgrades.critChance || 0;
+  }
+  if (data.shop){
+    state.shopItems.bita.owned = !!data.shop.bita;
+    state.shopItems.hat.owned = !!data.shop.hat;
+    state.shopItems.boots.owned = !!data.shop.boots;
+    state.shopItems.crown.owned = !!data.shop.crown;
+  }
+
+  // офлайн-доход, пока игрока не было (капаем на 2 часа, чтобы не абьюзили)
+  if (data.lastSavedAt){
+    recalcDerived();
+    const offlineSec = Math.min((Date.now() - data.lastSavedAt) / 1000, 7200);
+    if (offlineSec > 5 && state.perSecond > 0){
+      const earned = Math.round(offlineSec * state.perSecond);
+      state.balance += earned;
+      state.totalEarned += earned;
+    }
+  }
+}
+
+let saveTimer = null;
+function scheduleSave(){
+  if (saveTimer) return;
+  saveTimer = setTimeout(function(){
+    saveTimer = null;
+    YandexIntegration.saveData(serializeState());
+  }, 800); // дебаунс — не спамим сохранением на каждый тап
+}
+
+
+/* =========================================================================
+   ЧАСТЬ 5. РЕНДЕР UI
+   ========================================================================= */
+const el = {
+  balance: document.getElementById('balanceText'),
+  income: document.getElementById('incomeText'),
+  charBtn: document.getElementById('charBtn'),
+  comboText: document.getElementById('comboText'),
+  perClickText: document.getElementById('perClickText'),
+  stage: document.getElementById('stage'),
+  sheet: document.getElementById('sheet'),
+  sheetOverlay: document.getElementById('sheetOverlay'),
+  sheetTitle: document.getElementById('sheetTitle'),
+  sheetList: document.getElementById('sheetList'),
+  rvBanner: document.getElementById('rvBanner'),
+  rvText: document.getElementById('rvText'),
+  rvGoBtn: document.getElementById('rvGoBtn'),
+  tabs: Array.from(document.querySelectorAll('.tabBtn')),
+
+  dailyToast: document.getElementById('dailyToast'),
+  dailyToastTitle: document.getElementById('dailyToastTitle'),
+  dailyToastSub: document.getElementById('dailyToastSub'),
+  dailyToastClaim: document.getElementById('dailyToastClaim'),
+
+  achToast: document.getElementById('achToast'),
+  achToastLabel: document.getElementById('achToastLabel'),
+  achToastName: document.getElementById('achToastName'),
+  achToastIcon: document.getElementById('achToastIcon'),
+
+  settingsOverlay: document.getElementById('settingsOverlay'),
+  settingsPanel: document.getElementById('settingsPanel'),
+  settingsCloseBtn: document.getElementById('settingsCloseBtn'),
+  toggleSfx: document.getElementById('toggleSfx'),
+  toggleMusic: document.getElementById('toggleMusic'),
+
+  resetProgressBtn: document.getElementById('resetProgressBtn'),
+  resetConfirmOverlay: document.getElementById('resetConfirmOverlay'),
+  resetConfirmPanel: document.getElementById('resetConfirmPanel'),
+  resetConfirmCancel: document.getElementById('resetConfirmCancel'),
+  resetConfirmYes: document.getElementById('resetConfirmYes')
+};
+
+function fmt(n){
+  n = Math.floor(n);
+  if (n < 1000) return String(n);
+  if (n < 1e6) return (n/1e3).toFixed(n < 1e4 ? 1 : 0).replace('.0','') + 'K';
+  if (n < 1e9) return (n/1e6).toFixed(2).replace(/0+$/,'').replace(/\.$/,'') + 'M';
+  return (n/1e9).toFixed(2).replace(/0+$/,'').replace(/\.$/,'') + 'B';
+}
+
+function renderTopbar(){
+  el.balance.textContent = fmt(state.balance);
+  el.income.textContent = fmt(state.perSecond) + '/' + (L === STRINGS.ru ? 'с' : 's');
+}
+
+let activeTab = 'upgrades';
+
+function renderSheet(){
+  el.sheetTitle.textContent =
+    activeTab === 'upgrades' ? L.upgrades :
+    (activeTab === 'shop' ? L.shop :
+    (activeTab === 'achievements' ? L.achievements : L.stats));
+  el.sheetList.innerHTML = '';
+  el.rvBanner.style.display = activeTab === 'upgrades' ? 'flex' : 'none';
+
+  if (activeTab === 'upgrades'){
+    // Если ближайший апгрейд сейчас не по карману — баннер подсказывает,
+    // что реклама даёт доп. пачку сахарков (честный доп.бонус, не замена покупки)
+    const cheapestCost = Math.min(
+      costFor(state.upgrades.tapPower),
+      costFor(state.upgrades.passiveIncome),
+      state.upgrades.critChance.level < state.upgrades.critChance.cap ? costFor(state.upgrades.critChance) : Infinity
+    );
+    if (state.balance < cheapestCost){
+      el.rvText.textContent = L.rvOfferShort;
+      el.rvGoBtn.dataset.mode = 'coins';
+    } else {
+      el.rvText.textContent = L.rvOffer;
+      el.rvGoBtn.dataset.mode = 'double';
+    }
+  }
+
+  if (activeTab === 'upgrades') renderUpgradesList();
+  else if (activeTab === 'shop') renderShopList();
+  else if (activeTab === 'achievements') renderAchievementsList();
+  else renderStatsList();
+}
+
+function makeRow(icon, name, desc, sub, buyLabel, disabled, onBuy){
+  const row = document.createElement('div');
+  row.className = 'itemRow';
+  row.innerHTML =
+    '<div class="itemIcon">'+icon+'</div>' +
+    '<div class="itemInfo">' +
+      '<div class="itemName">'+name+'</div>' +
+      '<div class="itemDesc">'+desc+'</div>' +
+      (sub ? '<div class="itemLevel">'+sub+'</div>' : '') +
+    '</div>';
+  const btn = document.createElement('button');
+  btn.className = 'itemBuyBtn' + (disabled ? ' disabled' : '');
+  btn.textContent = buyLabel;
+  if (!disabled) btn.onclick = onBuy;
+  row.appendChild(btn);
+  return row;
+}
+
+function renderUpgradesList(){
+  const defs = [
+    { key:'tapPower',      icon:'👊', name:L.tapPower,      desc:L.tapPowerDesc },
+    { key:'passiveIncome', icon:'⏳', name:L.passiveIncome, desc:L.passiveIncomeDesc },
+    { key:'critChance',    icon:'✨', name:L.critChance,    desc:L.critChanceDesc }
+  ];
+  defs.forEach(function(d){
+    const up = state.upgrades[d.key];
+    const capped = up.cap ? up.level >= up.cap : false;
+    const cost = costFor(up);
+    const canAfford = state.balance >= cost && !capped;
+    const sub = (L === STRINGS.ru ? 'Уровень ' : 'Level ') + up.level + (up.cap ? ('/'+up.cap) : '');
+    const row = makeRow(
+      d.icon, d.name, d.desc, sub,
+      capped ? L.max : (fmt(cost) + ' 🍬'),
+      capped || !canAfford,
+      function(){ buyUpgrade(d.key); }
+    );
+    el.sheetList.appendChild(row);
+  });
+}
+
+function renderShopList(){
+  const defs = [
+    { key:'bita',  icon:'🏏', name:L.shopBita,  desc:L.shopBitaDesc },
+    { key:'hat',   icon:'🧢', name:L.shopHat,   desc:L.shopHatDesc },
+    { key:'boots', icon:'👟', name:L.shopBoots, desc:L.shopBootsDesc },
+    { key:'crown', icon:'👑', name:L.shopCrown, desc:L.shopCrownDesc }
+  ];
+  defs.forEach(function(d){
+    const item = state.shopItems[d.key];
+    const canAfford = state.balance >= item.cost && !item.owned;
+    const row = makeRow(
+      d.icon, d.name, d.desc, null,
+      item.owned ? '✓' : (fmt(item.cost) + ' 🍬'),
+      item.owned || !canAfford,
+      function(){ buyShopItem(d.key); }
+    );
+    el.sheetList.appendChild(row);
+  });
+}
+
+function renderAchievementsList(){
+  const doneCount = Object.keys(state.unlockedAch).length;
+  const totalCount = Object.keys(ACHIEVEMENTS).length;
+
+  const header = document.createElement('div');
+  header.style.cssText = 'text-align:center;color:rgba(255,255,255,.6);font-weight:700;font-size:12.5px;padding:2px 0 6px;';
+  header.textContent = (L === STRINGS.ru ? 'Получено: ' : 'Unlocked: ') + doneCount + ' / ' + totalCount;
+  el.sheetList.appendChild(header);
+
+  for (const key in ACHIEVEMENTS){
+    const def = ACHIEVEMENTS[key];
+    const done = !!state.unlockedAch[key];
+    const row = document.createElement('div');
+    row.className = 'achRow ' + (done ? 'done' : 'locked');
+    row.innerHTML =
+      '<div class="achIcon">'+def.icon+'</div>' +
+      '<div class="achInfo">' +
+        '<div class="achName">'+def.name+'</div>' +
+        '<div class="achDesc">'+def.desc+'</div>' +
+      '</div>' +
+      '<div class="achCheck">'+(done ? '✅' : '🔒')+'</div>';
+    el.sheetList.appendChild(row);
+  }
+}
+
+function renderStatsList(){
+  const playedSec = Math.floor((Date.now() - state.startedAt)/1000);
+  const h = Math.floor(playedSec/3600), m = Math.floor((playedSec%3600)/60);
+  const rows = [
+    [ '🍬', L.totalEarned, fmt(state.totalEarned) ],
+    [ '👆', L.totalClicks, fmt(state.totalClicks) ],
+    [ '⏱️', L.totalTime, (h>0? h+'ч ':'') + m + 'м' ],
+    [ '⭐', L.level, String(1 + state.upgrades.tapPower.level + state.upgrades.passiveIncome.level + state.upgrades.critChance.level) ]
+  ];
+  rows.forEach(function(r){
+    const row = document.createElement('div');
+    row.className = 'itemRow';
+    row.innerHTML =
+      '<div class="itemIcon">'+r[0]+'</div>' +
+      '<div class="itemInfo"><div class="itemName">'+r[1]+'</div></div>' +
+      '<div class="itemName">'+r[2]+'</div>';
+    el.sheetList.appendChild(row);
+  });
+}
+
+function buyUpgrade(key){
+  const up = state.upgrades[key];
+  const cost = costFor(up);
+  if (state.balance < cost) return;
+  if (up.cap && up.level >= up.cap) return;
+  SoundEngine.playClick();
+  state.balance -= cost;
+  up.level += 1;
+  recalcDerived();
+  renderTopbar();
+  renderSheet();
+  checkAchievements();
+  scheduleSave();
+}
+
+function buyShopItem(key){
+  const item = state.shopItems[key];
+  if (item.owned || state.balance < item.cost) return;
+  SoundEngine.playClick();
+  state.balance -= item.cost;
+  item.owned = true;
+  recalcDerived();
+  renderTopbar();
+  renderSheet();
+  checkAchievements();
+  scheduleSave();
+}
+
+
+/* =========================================================================
+   ЧАСТЬ 6. КЛИК ПО ПЕРСОНАЖУ + ВСПЛЫВАЮЩИЕ ЦИФРЫ
+   ========================================================================= */
+let comboCount = 0;
+let comboTimer = null;
+
+function spawnFloatNumber(x, y, amount, isCrit){
+  const num = document.createElement('div');
+  num.className = 'floatNum';
+  num.textContent = '+' + fmt(amount);
+  if (isCrit){
+    num.style.color = 'var(--sahar-yellow)';
+    num.style.fontSize = '30px';
+  }
+  num.style.left = x + 'px';
+  num.style.top = y + 'px';
+  el.stage.appendChild(num);
+  setTimeout(function(){ num.remove(); }, 850);
+}
+
+function handleTap(clientX, clientY){
+  SoundEngine.unlockOnFirstGesture();
+
+  let amount = state.perClick;
+  const isCrit = Math.random() < state.critChance;
+  if (isCrit) amount *= state.critMultiplier;
+
+  state.balance += amount;
+  state.totalEarned += amount;
+  state.totalClicks += 1;
+
+  const rect = el.charBtn.getBoundingClientRect();
+  const x = (clientX != null ? clientX : rect.left + rect.width/2) - rect.left + rect.left;
+  const y = (clientY != null ? clientY : rect.top + rect.height/2);
+  spawnFloatNumber(clientX != null ? clientX : rect.left+rect.width/2, clientY != null ? clientY : rect.top+rect.height/2, amount, isCrit);
+
+  SoundEngine.playTap(isCrit);
+
+  el.charBtn.classList.remove('tapAnim');
+  void el.charBtn.offsetWidth; // reflow, чтобы анимация перезапускалась
+  el.charBtn.classList.add('tapAnim');
+
+  comboCount += 1;
+  if (comboCount > state.maxCombo) state.maxCombo = comboCount;
+  clearTimeout(comboTimer);
+  if (comboCount >= 5){
+    el.comboText.textContent = 'x' + comboCount + ' COMBO!';
+    el.comboText.style.opacity = '1';
+  }
+  comboTimer = setTimeout(function(){
+    comboCount = 0;
+    el.comboText.style.opacity = '0';
+  }, 900);
+
+  renderTopbar();
+  if (activeTab === 'upgrades' || activeTab === 'shop' || activeTab === 'achievements') renderSheetButtonsOnlyIfOpen();
+  checkAchievements();
+  scheduleSave();
+}
+
+// Лёгкий ре-рендер кнопок покупки, если панель открыта (чтобы disabled-статус
+// на кнопках сразу обновлялся по мере роста баланса от кликов)
+function renderSheetButtonsOnlyIfOpen(){
+  if (el.sheet.classList.contains('open')) renderSheet();
+}
+
+el.charBtn.addEventListener('pointerdown', function(e){
+  e.preventDefault();
+  handleTap(e.clientX, e.clientY);
+});
+
+
+/* =========================================================================
+   ЧАСТЬ 7. ВКЛАДКИ И ПАНЕЛЬ
+   ========================================================================= */
+el.tabs.forEach(function(btn){
+  btn.addEventListener('click', function(){
+    SoundEngine.playClick();
+    el.tabs.forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    activeTab = btn.dataset.tab;
+    openSheet();
+  });
+});
+
+function openSheet(){
+  renderSheet();
+  el.sheet.classList.add('open');
+  el.sheetOverlay.classList.add('open');
+}
+function closeSheet(){
+  el.sheet.classList.remove('open');
+  el.sheetOverlay.classList.remove('open');
+}
+el.sheetOverlay.addEventListener('click', closeSheet);
+
+// свайп вниз по хэндлу — закрыть панель (просто и достаточно для MVP)
+document.getElementById('sheetHandle').addEventListener('click', closeSheet);
+
+
+/* =========================================================================
+   ЧАСТЬ 8. РЕКЛАМА ЗА НАГРАДУ (rewarded video) — два режима:
+   "coins" — мгновенная пачка сахарков (когда не хватает на апгрейд),
+   "double" — буст дохода х2 на 60 сек. Оба варианта — честный ДОП.бонус
+   к основной игре, ничего не подменяют (п.4.5.2 требований Яндекс Игр).
+   ========================================================================= */
+function coinsPackAmount(){
+  // Пачка ~35% от стоимости самого дешёвого доступного апгрейда — заметно
+  // помогает докупить, но не заменяет прогресс от тапанья и покупок
+  const cheapest = Math.min(
+    costFor(state.upgrades.tapPower),
+    costFor(state.upgrades.passiveIncome),
+    state.upgrades.critChance.level < state.upgrades.critChance.cap ? costFor(state.upgrades.critChance) : Infinity
+  );
+  return Math.max(10, Math.round(cheapest * 0.35));
+}
+
+let rvCooldownUntil = 0;
+const RV_COOLDOWN_MS = 30000; // 30 сек между показами, чтобы не абьюзили рекламу вместо игры
+
+el.rvGoBtn.addEventListener('click', function(){
+  if (Date.now() < rvCooldownUntil) return; // ещё на кулдауне, клик игнорируем
+
+  const mode = el.rvGoBtn.dataset.mode || 'double';
+
+  YandexIntegration.showRewarded(function(){
+    if (mode === 'coins'){
+      const reward = coinsPackAmount();
+      state.balance += reward;
+      state.totalEarned += reward;
+      SoundEngine.playFanfare();
+    } else {
+      state.doubleIncomeUntil = Date.now() + 60000;
+    }
+    rvCooldownUntil = Date.now() + RV_COOLDOWN_MS;
+    recalcDerived();
+    renderTopbar();
+    renderSheetButtonsOnlyIfOpen();
+    checkAchievements();
+    scheduleSave();
+    startRvCooldownVisual();
+  });
+});
+
+// Обновляет текст кнопки рекламы раз в секунду, пока действует кулдаун,
+// чтобы человек видел таймер, а не тыкал в неработающую кнопку
+function startRvCooldownVisual(){
+  const originalText = el.rvGoBtn.textContent;
+  const tick = function(){
+    const left = Math.ceil((rvCooldownUntil - Date.now()) / 1000);
+    if (left <= 0){
+      el.rvGoBtn.textContent = L.watch;
+      el.rvGoBtn.style.opacity = '1';
+      return;
+    }
+    el.rvGoBtn.textContent = '⏳ ' + left;
+    el.rvGoBtn.style.opacity = '.6';
+    setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+
+/* =========================================================================
+   ЧАСТЬ 9. ПАССИВНЫЙ ДОХОД — тикает раз в секунду
+   ========================================================================= */
+setInterval(function(){
+  if (state.perSecond > 0){
+    state.balance += state.perSecond;
+    state.totalEarned += state.perSecond;
+    renderTopbar();
+  }
+  // на случай истечения буста х2 от рекламы — пересчитать доход
+  recalcDerived();
+}, 1000);
+
+
+/* =========================================================================
+   ЧАСТЬ 10. ЗАГЛУШКА ПОВОРОТА ЭКРАНА (п.1.6.1.3 требований)
+   Игра у нас портретная (типично для мобильного кликера). Если девайс
+   в ландшафте — показываем простую заглушку с просьбой повернуть.
+   ========================================================================= */
+function checkOrientation(){
+  const guard = document.getElementById('rotateGuard');
+  const isLandscape = window.innerWidth > window.innerHeight;
+  const isSmallScreen = window.innerWidth < 900; // на десктопе ландшафт — это норма
+  guard.style.display = (isLandscape && isSmallScreen) ? 'flex' : 'none';
+}
+window.addEventListener('resize', checkOrientation);
+window.addEventListener('orientationchange', checkOrientation);
+
+
+/* =========================================================================
+   ЧАСТЬ 11. ЗВУК — фоновая музыка + звук тапа/крита, всё генерируется
+   через Web Audio API программно (без mp3-файлов, чтобы не раздувать вес).
+   Звук всегда останавливается при сворачивании вкладки (п.1.3 требований
+   Яндекс Игр — звук должен глохнуть, если страница неактивна).
+   ========================================================================= */
+const SoundEngine = (function(){
+  let ctx = null;
+  let musicNodes = null;
+  let musicTimer = null;
+  let unlocked = false; // аудио-контекст можно стартовать только по жесту пользователя
+
+  function ensureCtx(){
+    if (!ctx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  // Звук тапа — голосовая фраза персонажа (tap-sound.mp3). cloneNode нужен,
+  // чтобы при быстром тапании (комбо) звуки могли звучать внахлёст, а не
+  // обрывать друг друга — обычный <audio> не умеет играть сам с собой параллельно.
+  //
+  // БАГФИКС: громкость раньше стояла на 0.85-1.0 (85-100%) — это в разы
+  // громче остальных звуков в игре (UI-клики звучат на ~6% громкости) и
+  // объективно било по ушам. Плюс playbackRate 1.15 на критах ускорял и
+  // питч-шифтил голос, отчего короткая фраза звучала ещё более "сжато" и
+  // обрезанно — для синтетических тонов это не проблема, для живого голоса
+  // на записи без запаса тишины в конце - усугубляет ощущение обрыва.
+  // Убрал ускорение, сильно снизил громкость.
+  const tapAudioEl = document.getElementById('tapSound');
+  function playTap(isCrit){
+    if (!state.sfxOn) return;
+    const node = tapAudioEl.cloneNode(true);
+    node.volume = isCrit ? 0.45 : 0.32;
+    node.play().catch(function(){}); // игнорируем автоплей-ошибки, звук не критичен
+  }
+
+  // Мягкий "клик" для UI-кнопок (покупки, вкладки)
+  function playClick(){
+    if (!state.sfxOn) return;
+    const c = ensureCtx();
+    if (!c) return;
+    const now = c.currentTime;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(420, now);
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(gain); gain.connect(c.destination);
+    osc.start(now); osc.stop(now + 0.09);
+  }
+
+  // Праздничный короткий арпеджио для ачивок/дневного бонуса (общий случай)
+  function playFanfare(){
+    if (!state.sfxOn) return;
+    const c = ensureCtx();
+    if (!c) return;
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+    notes.forEach(function(freq, i){
+      const now = c.currentTime + i * 0.09;
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.connect(gain); gain.connect(c.destination);
+      osc.start(now); osc.stop(now + 0.26);
+    });
+  }
+
+  // Спец-звук именно для ачивки "Тун Тун Сахур 67" (six-seven-67.mp3)
+  const achAudioEl = document.getElementById('achSound67');
+  function playAchSound67(){
+    if (!state.sfxOn) return;
+    achAudioEl.currentTime = 0;
+    achAudioEl.volume = 1.0;
+    achAudioEl.play().catch(function(){});
+  }
+
+  // Простой весёлый фоновый луп — короткая повторяющаяся мелодия-бип на
+  // маленькой громкости, чтобы не раздражать при долгой игре
+  const MELODY = [392, 440, 494, 440, 392, 330, 392, 0, 440, 494, 523, 494, 440, 392, 440, 0];
+  let noteIndex = 0;
+
+  function scheduleNextNote(){
+    if (!state.musicOn) return;
+    const c = ensureCtx();
+    if (!c) return;
+    const freq = MELODY[noteIndex % MELODY.length];
+    noteIndex++;
+    if (freq > 0){
+      const now = c.currentTime;
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.045, now + 0.02);
+      gain.gain.linearRampToValueAtTime(0, now + 0.22);
+      osc.connect(gain); gain.connect(c.destination);
+      osc.start(now); osc.stop(now + 0.24);
+    }
+    musicTimer = setTimeout(scheduleNextNote, 260);
+  }
+
+  function startMusic(){
+    if (!state.musicOn || musicTimer) return;
+    const c = ensureCtx();
+    if (!c) return;
+    scheduleNextNote();
+  }
+
+  function stopMusic(){
+    if (musicTimer){ clearTimeout(musicTimer); musicTimer = null; }
+  }
+
+  // Первый пользовательский тап разблокирует AudioContext (требование браузеров)
+  function unlockOnFirstGesture(){
+    if (unlocked) return;
+    unlocked = true;
+    ensureCtx();
+    if (state.musicOn) startMusic();
+  }
+
+  return { playTap, playClick, playFanfare, playAchSound67, startMusic, stopMusic, unlockOnFirstGesture, ensureCtx };
+})();
+
+// Звук должен глохнуть при сворачивании вкладки — обязательное требование
+document.addEventListener('visibilitychange', function(){
+  if (document.hidden){
+    SoundEngine.stopMusic();
+  } else if (state.musicOn){
+    SoundEngine.startMusic();
+  }
+});
+
+
+/* =========================================================================
+   ЧАСТЬ 11.5. ТОСТЫ АЧИВОК — показываются по очереди, если разблокировалось
+   сразу несколько (например докупил весь магазин одним махом).
+   ========================================================================= */
+let achToastQueue = [];
+let achToastShowing = false;
+
+function queueAchToast(key){
+  achToastQueue.push(key);
+  if (!achToastShowing) showNextAchToast();
+}
+
+function showNextAchToast(){
+  if (!achToastQueue.length){ achToastShowing = false; return; }
+  achToastShowing = true;
+  const key = achToastQueue.shift();
+  const def = ACHIEVEMENTS[key];
+  el.achToastLabel.textContent = L.achToastLabel;
+  el.achToastName.textContent = def.name;
+  el.achToastIcon.textContent = def.icon;
+  el.achToast.classList.add('show');
+
+  // Ачивка "Тун Тун Сахур 67" получает свой уникальный звук вместо общей фанфары
+  if (key === 'clicks_6767'){
+    SoundEngine.playAchSound67();
+  } else {
+    SoundEngine.playFanfare();
+  }
+
+  setTimeout(function(){
+    el.achToast.classList.remove('show');
+    setTimeout(showNextAchToast, 300);
+  }, 2200);
+}
+
+
+/* =========================================================================
+   ЧАСТЬ 11.6. ЕЖЕДНЕВНЫЙ БОНУС — стрик по календарным дням. Награда растёт
+   с длиной стрика (капается на 7 день, дальше держится на максимуме, чтобы
+   цифры не разъезжались до бесконечности).
+   ========================================================================= */
+function todayKey(){
+  const d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+}
+
+function dailyRewardFor(streakDay){
+  const day = Math.min(streakDay, 7);
+  return 50 * day; // день1=50, день2=100 ... день7=350, дальше держится на 350
+}
+
+function checkDailyBonus(){
+  const today = todayKey();
+  if (state.lastClaimDay === today) return; // уже забирал сегодня
+
+  // Если пропустил день (разрыв больше 1 календарного дня) — стрик обнуляется
+  if (state.lastClaimDay){
+    const prev = new Date(state.lastClaimDay.replace(/-/g, '/'));
+    const diffDays = Math.round((new Date(today.replace(/-/g,'/')) - prev) / 86400000);
+    if (diffDays > 1) state.dailyStreak = 0;
+  }
+
+  state.dailyPending = true;
+  const nextStreak = state.dailyStreak + 1;
+  const reward = dailyRewardFor(nextStreak);
+  el.dailyToastSub.textContent = L.dailySub.replace('{n}', nextStreak) + ' +' + fmt(reward) + ' 🍬';
+  el.dailyToastTitle.textContent = L.dailyTitle;
+  el.dailyToastClaim.textContent = L.dailyClaim;
+  el.dailyToast.classList.add('show');
+}
+
+el.dailyToastClaim.addEventListener('click', function(){
+  const today = todayKey();
+  const nextStreak = state.dailyStreak + 1;
+  const reward = dailyRewardFor(nextStreak);
+
+  state.balance += reward;
+  state.totalEarned += reward;
+  state.dailyStreak = nextStreak;
+  state.lastClaimDay = today;
+  state.dailyPending = false;
+
+  SoundEngine.playFanfare();
+  el.dailyToast.classList.remove('show');
+  renderTopbar();
+  checkAchievements();
+  scheduleSave();
+});
+
+
+/* =========================================================================
+   ЧАСТЬ 11.7. ПАНЕЛЬ НАСТРОЕК — тумблеры звука и музыки
+   ========================================================================= */
+function updateToggleUI(){
+  el.toggleSfx.classList.toggle('on', state.sfxOn);
+  el.toggleMusic.classList.toggle('on', state.musicOn);
+}
+
+document.getElementById('menuBtn').addEventListener('click', function(){
+  updateToggleUI();
+  el.settingsOverlay.classList.add('open');
+  el.settingsPanel.classList.add('open');
+});
+
+function closeSettings(){
+  el.settingsOverlay.classList.remove('open');
+  el.settingsPanel.classList.remove('open');
+}
+el.settingsOverlay.addEventListener('click', closeSettings);
+el.settingsCloseBtn.addEventListener('click', closeSettings);
+
+el.toggleSfx.addEventListener('click', function(){
+  state.sfxOn = !state.sfxOn;
+  updateToggleUI();
+  if (state.sfxOn) SoundEngine.playClick();
+  scheduleSave();
+});
+
+el.toggleMusic.addEventListener('click', function(){
+  state.musicOn = !state.musicOn;
+  updateToggleUI();
+  if (state.musicOn) SoundEngine.startMusic();
+  else SoundEngine.stopMusic();
+  scheduleSave();
+});
+
+
+/* =========================================================================
+   ЧАСТЬ 11.8. СБРОС ПРОГРЕССА (для теста) — с обязательным подтверждением,
+   чтобы не стереть прогресс одним случайным тапом. Полностью чистит
+   localStorage и сохранение через Yandex SDK, затем перезагружает
+   страницу — так надёжнее, чем вручную обнулять каждое поле state.
+   ========================================================================= */
+el.resetProgressBtn.addEventListener('click', function(){
+  SoundEngine.playClick();
+  el.resetConfirmOverlay.classList.add('open');
+  el.resetConfirmPanel.classList.add('open');
+});
+
+function closeResetConfirm(){
+  el.resetConfirmOverlay.classList.remove('open');
+  el.resetConfirmPanel.classList.remove('open');
+}
+el.resetConfirmOverlay.addEventListener('click', closeResetConfirm);
+el.resetConfirmCancel.addEventListener('click', closeResetConfirm);
+
+el.resetConfirmYes.addEventListener('click', function(){
+  // БАГФИКС: раньше тут только чистилось внешнее хранилище (localStorage/SDK),
+  // но сам объект state оставался в памяти со старыми цифрами. Обработчик
+  // beforeunload (ниже, часть 12) при вызове reload() успевал сохранить
+  // ЭТОТ старый state обратно в localStorage быстрее, чем страница
+  // перезагружалась — из-за этого сброс сам себя перезатирал.
+  // Фикс: обнуляем сам state целиком ДО сохранения и ДО reload().
+  state.balance = 0;
+  state.totalEarned = 0;
+  state.totalClicks = 0;
+  state.startedAt = Date.now();
+  state.doubleIncomeUntil = 0;
+  state.maxCombo = 0;
+  state.dailyStreak = 0;
+  state.lastClaimDay = null;
+  state.dailyPending = false;
+  state.unlockedAch = {};
+  state.upgrades.tapPower.level = 0;
+  state.upgrades.passiveIncome.level = 0;
+  state.upgrades.critChance.level = 0;
+  state.shopItems.bita.owned = false;
+  state.shopItems.hat.owned = false;
+  state.shopItems.boots.owned = false;
+  state.shopItems.crown.owned = false;
+  // sfxOn/musicOn намеренно не трогаем — это настройки звука, не прогресс
+
+  YandexIntegration.saveData(serializeState());
+  window.location.reload();
+});
+
+
+/* =========================================================================
+   ЧАСТЬ 12. СТАРТ ИГРЫ
+   ========================================================================= */
+function boot(){
+  YandexIntegration.init(function(sdkReady){
+    const detectedLang = YandexIntegration.getLang();
+    L = STRINGS[detectedLang] || STRINGS.ru;
+    applyStaticLabels();
+
+    YandexIntegration.loadData(function(data){
+      applySavedData(data);
+      recalcDerived();
+      renderTopbar();
+      checkOrientation();
+      checkAchievements(); // на случай если офлайн-доход уже выполнил условие ачивки
+
+      // Небольшая задержка, чтобы плашка бонуса не наскакивала на анимацию
+      // загрузки — сначала пусть человек увидит саму игру
+      setTimeout(checkDailyBonus, 700);
+
+      // Обязательный вызов по требованиям SDK — сообщаем, что игра готова
+      YandexIntegration.gameReady();
+      YandexIntegration.gameplayStart();
+
+      console.log('[Тун Тун Кликер] игра запущена. SDK:', sdkReady ? 'online' : 'offline (localStorage)');
+    });
+  });
+}
+
+boot();
+
+// сохраняемся перед закрытием вкладки на всякий случай
+window.addEventListener('beforeunload', function(){
+  YandexIntegration.saveData(serializeState());
+});
+
+</script>
+</body>
+</html>
+<!--
+============================================================================
+ ЧТО ЕСТЬ В ЭТОЙ ВЕРСИИ ИГРЫ
+============================================================================
+- Тап по персонажу (твоя картинка assets/tuntun.png уже вшита, фон оставлен
+  как есть — object-fit:cover заполняет круг, обрезая края фото)
+- Апгрейды: сила тапа, пассивный доход, шанс крита
+- Магазин: бита, кепка, кроссы, корона
+- Ачивки (11 штук, вкладка 🏆) — мемные, детские, безобидные
+- Ежедневный бонус за стрик захода (растёт до 7 дня, потом держится на макс.)
+- Музыка + звуковые эффекты — генерируются через Web Audio API "на лету",
+  без mp3-файлов. Тумблеры звука в настройках (кнопка ⚙️ сверху справа)
+- Rewarded-реклама в двух режимах: пачка сахарков (если не хватает на
+  апгрейд) или x2 доход на 60 сек (если апгрейды и так по карману) —
+  оба варианта ДОПОЛНЯЮТ игру, не подменяют покупки (см. п.4.5.2
+  требований Яндекс Игр — награда за рекламу не должна быть единственным
+  путём получить прогресс)
+- Сохранение: через игрока Yandex SDK + дублируется в localStorage
+
+============================================================================
+ КАК ПРОВЕРИТЬ ЛОКАЛЬНО ПЕРЕД ЗАЛИВКОЙ НА ЯНДЕКС ИГРЫ
+============================================================================
+Открыть просто двойным кликом по index.html можно, но лучше через локальный
+сервер (некоторые браузеры блокируют кое-что по file:// протоколу):
+
+  Вариант 1 (если есть Python):  python3 -m http.server 8000
+  Вариант 2 (если есть Node):    npx serve .
+
+Потом открой http://localhost:8000 в браузере.
+Yandex SDK на локальном тесте не найдётся (это нормально, увидишь в консоли
+"offline-режим") — вся логика при этом продолжает работать на localStorage,
+чтобы можно было тестировать баланс/апгрейды без реальной площадки.
+
+Музыка и звук стартуют только после первого тапа по персонажу — это не баг,
+это требование браузеров (AudioContext нельзя запустить без жеста юзера).
+
+============================================================================
+ КАК ЗАЛИТЬ НА ЯНДЕКС ИГРЫ
+============================================================================
+1. Заходишь в Консоль разработчика: https://games.yandex.ru/console
+2. Создаёшь новую игру → загружаешь ZIP-архив
+3. ВАЖНО (п.1.22 требований): index.html должен лежать В КОРНЕ архива,
+   то есть архивируй СОДЕРЖИМОЕ папки, а не саму папку. Никаких пробелов
+   и кириллицы в именах файлов/папок внутри архива.
+4. Заполняешь черновик: название, описание, "как играть", иконку (512x512),
+   обложку (800x470), скриншоты реального геймплея, возрастной тег,
+   выбираешь платформы (мобильные/десктоп) и ориентацию — портретная.
+5. Указываешь язык(и) — минимум русский, раз ты целишься на ru-аудиторию.
+6. Отправляешь на модерацию — по срокам это обычно 3-5 рабочих дней.
+
+============================================================================
+-->
+
