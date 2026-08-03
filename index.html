@@ -45,10 +45,23 @@
     padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
     padding-left:var(--safe-left); padding-right:var(--safe-right);
     display:flex; flex-direction:column;
+    background:#1a1033; /* фолбэк-цвет, пока картинка этапа грузится */
+  }
+
+  /* ---------- ФОНЫ ЭТАПОВ (два слоя для плавного кроссфейда) ---------- */
+  .bgLayer{
+    position:fixed; inset:0;
+    background-size:cover; background-position:center; background-repeat:no-repeat;
+    opacity:0; transition:opacity 1.1s ease;
+    z-index:0; pointer-events:none;
+  }
+  .bgLayer.active{ opacity:1; }
+  #bgTint{
+    position:fixed; inset:0; z-index:1; pointer-events:none;
     background:
-      radial-gradient(circle at 20% 10%, rgba(255,95,162,.35), transparent 45%),
-      radial-gradient(circle at 85% 85%, rgba(47,230,208,.28), transparent 50%),
-      linear-gradient(180deg, #2a1852 0%, #1a1033 60%, #120a24 100%);
+      radial-gradient(circle at 20% 10%, rgba(255,95,162,.25), transparent 45%),
+      radial-gradient(circle at 85% 85%, rgba(47,230,208,.2), transparent 50%),
+      linear-gradient(180deg, rgba(15,8,30,.55) 0%, rgba(15,8,30,.35) 45%, rgba(10,6,20,.75) 100%);
   }
 
   /* ---------- ШАПКА: сахарки + доход в секунду ---------- */
@@ -93,6 +106,7 @@
   #stage{
     flex:1 1 auto;
     position:relative;
+    z-index:3;
     display:flex; align-items:center; justify-content:center;
     min-height:0;
   }
@@ -270,6 +284,39 @@
     padding:8px 12px; border-radius:12px; flex:0 0 auto;
   }
 
+  /* ---------- ГЛАВНАЯ КНОПКА "+500 ЗА РЕКЛАМУ" (всегда на экране тапа) ---------- */
+  #mainAdBtn{
+    position:relative; z-index:5;
+    align-self:center;
+    margin:2px 0 4px;
+    display:flex; align-items:center; gap:8px;
+    padding:8px 16px 8px 8px;
+    border-radius:999px;
+    background:linear-gradient(90deg, var(--sahar-pink), var(--sahar-purple));
+    border:2px solid rgba(255,255,255,.35);
+    box-shadow:0 4px 0 rgba(0,0,0,.28), 0 0 24px rgba(255,95,162,.35);
+    color:#fff; font-weight:800; font-size:14px;
+    transition:opacity .25s, transform .25s, max-height .3s, margin .3s, padding .3s;
+    max-height:60px; overflow:hidden;
+  }
+  #mainAdBtn:active{ transform:scale(.96); }
+  #mainAdBtn.hidden{
+    opacity:0; pointer-events:none; transform:scale(.85);
+    max-height:0; margin:0; padding-top:0; padding-bottom:0; border-width:0;
+  }
+  .mainAdIconWrap{ position:relative; flex:0 0 auto; display:flex; }
+  .mainAdIcon{
+    width:32px; height:32px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:17px;
+    background:rgba(255,255,255,.22);
+  }
+  .mainAdBadge{
+    position:absolute; bottom:-4px; right:-6px;
+    background:#ff3b3b; color:#fff; font-size:7.5px; font-weight:800;
+    padding:1px 3px; border-radius:4px; letter-spacing:.02em;
+    border:1.5px solid var(--sahar-dark);
+  }
+
   /* ---------- ЗАГЛУШКА ПОВОРОТА (портрет/ландшафт) ---------- */
   #rotateGuard{
     position:fixed; inset:0; background:var(--sahar-dark);
@@ -335,6 +382,25 @@
   }
   .achToastLabel{ color:var(--sahar-yellow); font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; }
   .achToastName{ color:#fff; font-size:13.5px; font-weight:700; }
+
+  /* ---------- ТОСТ СМЕНЫ ЭТАПА ---------- */
+  #stageToast{
+    position:fixed; left:50%; top:14%;
+    transform:translate(-50%, -20px);
+    display:flex; align-items:center; gap:10px;
+    background:linear-gradient(135deg, #4a3510, #6b4d1a);
+    border:2px solid #ffd23f;
+    border-radius:16px; padding:10px 18px 10px 10px;
+    box-shadow:0 6px 0 rgba(0,0,0,.3), 0 0 40px rgba(255,210,63,.4);
+    opacity:0; pointer-events:none;
+    transition:opacity .3s, transform .3s;
+    z-index:22;
+    max-width:min(88vw, 380px);
+  }
+  #stageToast.show{ opacity:1; transform:translate(-50%, 0); }
+  #stageToastIcon{ font-size:26px; flex:0 0 auto; }
+  #stageToastLabel{ color:var(--sahar-yellow); font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; }
+  #stageToastName{ color:#fff; font-size:14px; font-weight:800; }
 
   /* ---------- КАРТОЧКИ АЧИВОК ---------- */
   .achRow{
@@ -461,6 +527,21 @@
 
 <div id="app">
 
+  <!-- Фоны этапов: два слоя для кроссфейда при смене этапа + тонирующий
+       слой поверх для читаемости UI (см. JS applyStageBackground) -->
+  <div id="bgLayerA" class="bgLayer active"></div>
+  <div id="bgLayerB" class="bgLayer"></div>
+  <div id="bgTint"></div>
+
+  <!-- Тост смены этапа -->
+  <div id="stageToast">
+    <div id="stageToastIcon">⛩️</div>
+    <div id="stageToastText">
+      <div id="stageToastLabel">Новый этап!</div>
+      <div id="stageToastName"></div>
+    </div>
+  </div>
+
   <!-- ШАПКА -->
   <div id="topbar">
     <div class="stat-pill">
@@ -480,7 +561,18 @@
     <button id="menuBtn">⚙️</button>
   </div>
 
-  <!-- Плашка "получи ежедневный бонус", всплывает при заходе если стрик доступен -->
+  <!-- Кнопка "500 сахарков за рекламу" на главном экране — всегда на виду,
+       не спрятана в меню. После просмотра прячется на 2 минуты (кулдаун),
+       чтобы не мозолила глаза во время тапанья, потом появляется снова. -->
+  <button id="mainAdBtn">
+    <span class="mainAdIconWrap">
+      <span class="mainAdIcon">🎬</span>
+      <span class="mainAdBadge">AD</span>
+    </span>
+    <span id="mainAdText">+500 🍬</span>
+  </button>
+
+  <!-- Плашка бонуса за время в игре, всплывает раз в 10 минут активной игры -->
   <div id="dailyToast">
     <div id="dailyToastInner">
       <div id="dailyToastIcon">🎁</div>
@@ -646,20 +738,26 @@ const YandexIntegration = (function(){
   }
 
   // Реклама за вознаграждение (rewarded video)
+  // Реклама за вознаграждение (rewarded video). Сигнатура строго по
+  // официальной документации Яндекса: onClose(wasShown) — вызывается и при
+  // успехе, и при ошибке/слишком частом вызове, wasShown отличает одно от
+  // другого. Награду начисляем ТОЛЬКО через onRewarded (реальный факт
+  // просмотра), никогда через onClose — так cooldown/награда не применятся,
+  // если реклама физически не показалась.
   function showRewarded(onReward, onClose){
     if (!ready || !ysdk || !ysdk.adv){
       // offline-заглушка для теста без площадки
       console.log('[Yandex SDK] rewarded недоступен offline — тестовая награда');
       onReward();
-      if (onClose) onClose();
+      if (onClose) onClose(true);
       return;
     }
     gameplayStop();
     ysdk.adv.showRewardedVideo({
       callbacks:{
         onRewarded: function(){ onReward(); },
-        onClose: function(){ gameplayStart(); if (onClose) onClose(); },
-        onError: function(e){ console.warn('[Yandex SDK] reward error', e); gameplayStart(); }
+        onClose: function(wasShown){ gameplayStart(); if (onClose) onClose(wasShown); },
+        onError: function(e){ console.warn('[Yandex SDK] reward error', e); gameplayStart(); if (onClose) onClose(false); }
       }
     });
   }
@@ -713,7 +811,7 @@ const STRINGS = {
     tapPower:'Сила тапа', tapPowerDesc:'Каждый тап приносит больше сахарков',
     passiveIncome:'Пассивный доход', passiveIncomeDesc:'Тун Тун сам копит сахарки, пока ты не в игре',
     critChance:'Шанс крита', critChanceDesc:'Иногда тап даёт х3 сахарков',
-    buy:'Купить', max:'МАКС', rvOffer:'Посмотри рекламу — получи 60 сек ×2 к доходу!', watch:'Смотреть',
+    buy:'Купить', max:'МАКС', rvOffer:'Посмотри рекламу — получи 2 мин ×2 к доходу!', watch:'Смотреть',
     rvOfferShort:'Не хватает сахарков? Посмотри рекламу — получи пачку прямо сейчас!',
     shopBita:'Бита тун-тун', shopBitaDesc:'Даёт Тун Туну +1 к силе тапа за плюшки',
     shopHat:'Кепка сахура', shopHatDesc:'Стильно и +2 к силе тапа',
@@ -722,7 +820,8 @@ const STRINGS = {
     statsTitle:'Твоя статистика', totalClicks:'Всего тапов', totalEarned:'Всего заработано',
     totalTime:'Время в игре', level:'Уровень', settings:'Настройки', sound:'Звук', language:'Язык',
     close:'Закрыть',
-    dailyTitle:'Ежедневный бонус!', dailyClaim:'Забрать', dailySub:'День {n} подряд — держи сахарки!',
+    dailyTitle:'10 минут в игре!', dailyClaim:'Забрать', dailySub:'Держи бонус за игру —',
+    mainAdOffer:'+500 🍬',
     achToastLabel:'Ачивка получена!'
   },
   en:{
@@ -731,7 +830,7 @@ const STRINGS = {
     tapPower:'Tap power', tapPowerDesc:'Each tap earns more sugar coins',
     passiveIncome:'Passive income', passiveIncomeDesc:'Tun Tun collects coins while you are away',
     critChance:'Crit chance', critChanceDesc:'Sometimes a tap gives x3 coins',
-    buy:'Buy', max:'MAX', rvOffer:'Watch an ad for 60 sec of ×2 income!', watch:'Watch',
+    buy:'Buy', max:'MAX', rvOffer:'Watch an ad for 2 min of ×2 income!', watch:'Watch',
     rvOfferShort:'Short on coins? Watch an ad for an instant pack!',
     shopBita:"Tun Tun bat", shopBitaDesc:'Gives Tun Tun +1 tap power for treats',
     shopHat:'Sahur cap', shopHatDesc:'Stylish and +2 tap power',
@@ -740,7 +839,8 @@ const STRINGS = {
     statsTitle:'Your stats', totalClicks:'Total taps', totalEarned:'Total earned',
     totalTime:'Time played', level:'Level', settings:'Settings', sound:'Sound', language:'Language',
     close:'Close',
-    dailyTitle:'Daily bonus!', dailyClaim:'Claim', dailySub:'Day {n} streak — here are your coins!',
+    dailyTitle:'10 minutes played!', dailyClaim:'Claim', dailySub:'Here is your playtime bonus —',
+    mainAdOffer:'+500 🍬',
     achToastLabel:'Achievement unlocked!'
   }
 };
@@ -753,6 +853,7 @@ function applyStaticLabels(){
   document.getElementById('tabShop').textContent = L.shop;
   document.getElementById('tabAch').textContent = L.tabAchLabel;
   document.getElementById('tabStats').textContent = L.stats;
+  el.mainAdText.textContent = L.mainAdOffer;
 }
 
 
@@ -771,11 +872,12 @@ const state = {
   doubleIncomeUntil: 0, // timestamp, до которого действует х2 от рекламы
   maxCombo: 0,          // лучший комбо-стрик тапов подряд за всю игру
 
-  // Ежедневный бонус: streak — сколько дней подряд заходил,
-  // lastClaimDay — календарный день (YYYY-MM-DD) последнего забора
-  dailyStreak: 0,
-  lastClaimDay: null,
-  dailyPending: false, // true, если сегодняшний бонус ещё не забран
+  // Бонус за время в игре: playSecondsAccum — сколько активных секунд
+  // накопилось с последнего забора (порог PLAYTIME_REWARD_SECONDS),
+  // playtimeRewardsClaimed — сколько раз всего забирал (для ачивок)
+  playSecondsAccum: 0,
+  playtimeRewardsClaimed: 0,
+  dailyPending: false, // true, если текущий тайм-бонус ещё не забран
 
   // Настройки звука (сохраняются вместе с прогрессом)
   sfxOn: true,
@@ -828,6 +930,66 @@ function recalcDerived(){
 
 
 /* =========================================================================
+   ЧАСТЬ 3.4. ЭТАПЫ — фон сцены меняется по мере прогресса (totalEarned).
+   Чтобы добавить новый этап позже: положи картинку в assets/, добавь
+   объект {minEarned, bg, name} в конец массива STAGES (отсортировано по
+   возрастанию minEarned) — остальное подхватится само.
+   ========================================================================= */
+const STAGES = [
+  { minEarned: 0,    bg:'assets/stage1.jpg', name:'Подворотня у Пос Ронда' },
+  { minEarned: 5000, bg:'assets/stage2.jpg', name:'Вознесение' }
+];
+
+function getStageIndexFor(totalEarned){
+  let idx = 0;
+  for (let i = 0; i < STAGES.length; i++){
+    if (totalEarned >= STAGES[i].minEarned) idx = i;
+  }
+  return idx;
+}
+
+let currentStageIndex = -1; // -1 = ещё ни разу не применяли
+let bgActiveLayer = 'A'; // какой из двух слоёв сейчас показан (для кроссфейда)
+
+function applyStageBackground(){
+  const idx = getStageIndexFor(state.totalEarned);
+  if (idx === currentStageIndex) return; // этап не поменялся, ничего не делаем
+
+  const isFirstApply = currentStageIndex === -1;
+  const stage = STAGES[idx];
+  const showToast = !isFirstApply && idx > currentStageIndex; // не показываем тост на самой первой загрузке
+  currentStageIndex = idx;
+
+  if (isFirstApply){
+    // При самой первой загрузке пишем картинку сразу в уже видимый слой A
+    // (он и так активен по умолчанию в HTML) — без кроссфейда, это не смена
+    // этапа, это просто начальная отрисовка
+    el.bgLayerA.style.backgroundImage = "url('" + stage.bg + "')";
+    return;
+  }
+
+  const nextLayer = bgActiveLayer === 'A' ? el.bgLayerB : el.bgLayerA;
+  const prevLayer = bgActiveLayer === 'A' ? el.bgLayerA : el.bgLayerB;
+
+  nextLayer.style.backgroundImage = "url('" + stage.bg + "')";
+  // небольшая задержка перед переключением класса, чтобы браузер успел
+  // применить backgroundImage до начала transition (иначе кроссфейд дёрнется)
+  requestAnimationFrame(function(){
+    nextLayer.classList.add('active');
+    prevLayer.classList.remove('active');
+  });
+  bgActiveLayer = bgActiveLayer === 'A' ? 'B' : 'A';
+
+  if (showToast){
+    el.stageToastName.textContent = stage.name;
+    el.stageToast.classList.add('show');
+    SoundEngine.playFanfare();
+    setTimeout(function(){ el.stageToast.classList.remove('show'); }, 3000);
+  }
+}
+
+
+/* =========================================================================
    ЧАСТЬ 3.5. АЧИВКИ — мемные, но безобидные, детский брейнрот-юмор.
    Каждая ачивка проверяется функцией check(state) → true/false.
    Порядок в объекте = порядок отображения в списке.
@@ -851,10 +1013,10 @@ const ACHIEVEMENTS = {
                      check:function(s){ return s.shopItems.bita.owned && s.shopItems.hat.owned && s.shopItems.boots.owned && s.shopItems.crown.owned; } },
   crit_master:    { icon:'✨', name:'Криткое чувство', desc:'Прокачай шанс крита до максимума',
                      check:function(s){ return s.upgrades.critChance.level >= s.upgrades.critChance.cap; } },
-  streak_3:       { icon:'📅', name:'Верный сахурец', desc:'Заходи в игру 3 дня подряд',
-                     check:function(s){ return s.dailyStreak >= 3; } },
-  streak_7:       { icon:'🏆', name:'Неделя брейнрота', desc:'Заходи в игру 7 дней подряд',
-                     check:function(s){ return s.dailyStreak >= 7; } }
+  streak_3:       { icon:'⏱️', name:'Верный сахурец', desc:'Забери тайм-бонус 3 раза',
+                     check:function(s){ return s.playtimeRewardsClaimed >= 3; } },
+  streak_7:       { icon:'🏆', name:'Неделя брейнрота', desc:'Забери тайм-бонус 7 раз',
+                     check:function(s){ return s.playtimeRewardsClaimed >= 7; } }
 };
 
 function checkAchievements(){
@@ -883,8 +1045,8 @@ function serializeState(){
     totalClicks: state.totalClicks,
     startedAt: state.startedAt,
     lastSavedAt: Date.now(),
-    dailyStreak: state.dailyStreak,
-    lastClaimDay: state.lastClaimDay,
+    playSecondsAccum: state.playSecondsAccum,
+    playtimeRewardsClaimed: state.playtimeRewardsClaimed,
     maxCombo: state.maxCombo,
     sfxOn: state.sfxOn,
     musicOn: state.musicOn,
@@ -909,8 +1071,8 @@ function applySavedData(data){
   state.totalEarned = data.totalEarned || 0;
   state.totalClicks = data.totalClicks || 0;
   state.startedAt = data.startedAt || Date.now();
-  state.dailyStreak = data.dailyStreak || 0;
-  state.lastClaimDay = data.lastClaimDay || null;
+  state.playSecondsAccum = data.playSecondsAccum || 0;
+  state.playtimeRewardsClaimed = data.playtimeRewardsClaimed || 0;
   state.maxCombo = data.maxCombo || 0;
   state.sfxOn = data.sfxOn !== undefined ? data.sfxOn : true;
   state.musicOn = data.musicOn !== undefined ? data.musicOn : true;
@@ -989,7 +1151,15 @@ const el = {
   resetConfirmOverlay: document.getElementById('resetConfirmOverlay'),
   resetConfirmPanel: document.getElementById('resetConfirmPanel'),
   resetConfirmCancel: document.getElementById('resetConfirmCancel'),
-  resetConfirmYes: document.getElementById('resetConfirmYes')
+  resetConfirmYes: document.getElementById('resetConfirmYes'),
+
+  bgLayerA: document.getElementById('bgLayerA'),
+  bgLayerB: document.getElementById('bgLayerB'),
+  stageToast: document.getElementById('stageToast'),
+  stageToastName: document.getElementById('stageToastName'),
+
+  mainAdBtn: document.getElementById('mainAdBtn'),
+  mainAdText: document.getElementById('mainAdText')
 };
 
 function fmt(n){
@@ -1003,6 +1173,7 @@ function fmt(n){
 function renderTopbar(){
   el.balance.textContent = fmt(state.balance);
   el.income.textContent = fmt(state.perSecond) + '/' + (L === STRINGS.ru ? 'с' : 's');
+  applyStageBackground(); // дешёвый no-op если этап не изменился
 }
 
 let activeTab = 'upgrades';
@@ -1291,6 +1462,7 @@ function coinsPackAmount(){
 
 let rvCooldownUntil = 0;
 const RV_COOLDOWN_MS = 30000; // 30 сек между показами, чтобы не абьюзили рекламу вместо игры
+const DOUBLE_INCOME_DURATION_MS = 120000; // 2 минуты — единая длительность х2-буста везде
 
 el.rvGoBtn.addEventListener('click', function(){
   if (Date.now() < rvCooldownUntil) return; // ещё на кулдауне, клик игнорируем
@@ -1304,7 +1476,7 @@ el.rvGoBtn.addEventListener('click', function(){
       state.totalEarned += reward;
       SoundEngine.playFanfare();
     } else {
-      state.doubleIncomeUntil = Date.now() + 60000;
+      state.doubleIncomeUntil = Date.now() + DOUBLE_INCOME_DURATION_MS;
     }
     rvCooldownUntil = Date.now() + RV_COOLDOWN_MS;
     recalcDerived();
@@ -1336,16 +1508,64 @@ function startRvCooldownVisual(){
 
 
 /* =========================================================================
-   ЧАСТЬ 9. ПАССИВНЫЙ ДОХОД — тикает раз в секунду
+   ЧАСТЬ 8.5. ГЛАВНАЯ КНОПКА "+500 ЗА РЕКЛАМУ" — отдельная от кнопки в меню
+   улучшений, свой независимый кулдаун (Яндекс не ограничивает частоту
+   rewarded-рекламы платформой — см. документацию, это чисто наш выбор по
+   балансу). После просмотра кнопка ПРЯЧЕТСЯ на 2 минуты (не показывает
+   таймер, как в меню улучшений) — так она не мозолит глаза на экране тапа,
+   где это как раз важно. Автоматически появляется снова по истечении.
+   ========================================================================= */
+let mainAdCooldownUntil = 0;
+const MAIN_AD_COOLDOWN_MS = 120000; // 2 минуты
+const MAIN_AD_REWARD = 500;         // фиксированная награда, без формул
+
+function updateMainAdBtnVisibility(){
+  const onCooldown = Date.now() < mainAdCooldownUntil;
+  el.mainAdBtn.classList.toggle('hidden', onCooldown);
+}
+
+el.mainAdBtn.addEventListener('click', function(){
+  if (Date.now() < mainAdCooldownUntil) return; // на всякий случай, кнопка и так спрятана в этот момент
+
+  YandexIntegration.showRewarded(function(){
+    // onReward — начисляем только по факту реального просмотра
+    state.balance += MAIN_AD_REWARD;
+    state.totalEarned += MAIN_AD_REWARD;
+    SoundEngine.playFanfare();
+    mainAdCooldownUntil = Date.now() + MAIN_AD_COOLDOWN_MS;
+    updateMainAdBtnVisibility();
+    renderTopbar();
+    checkAchievements();
+    scheduleSave();
+  }, function(wasShown){
+    // onClose — если реклама не показалась (ошибка/не загрузилась),
+    // кулдаун НЕ применяем, кнопка остаётся доступной для повторной попытки
+  });
+});
+
+
+/* =========================================================================
+   ЧАСТЬ 9. ПАССИВНЫЙ ДОХОД + ТАЙМЕР БОНУСА — тикает раз в секунду.
+   Секунды на бонус копятся только пока вкладка открыта и не свёрнута
+   (document.hidden) — так честнее, чем засчитывать время в фоне.
    ========================================================================= */
 setInterval(function(){
   if (state.perSecond > 0){
     state.balance += state.perSecond;
     state.totalEarned += state.perSecond;
-    renderTopbar();
   }
+  renderTopbar(); // всегда, не только при перерасчёте — иначе этап не проверится вовремя
+
+  if (!document.hidden && !state.dailyPending){
+    state.playSecondsAccum += 1;
+    if (state.playSecondsAccum >= PLAYTIME_REWARD_SECONDS){
+      showPlaytimeBonus();
+    }
+  }
+
   // на случай истечения буста х2 от рекламы — пересчитать доход
   recalcDerived();
+  updateMainAdBtnVisibility(); // сама появится обратно, когда кулдаун истечёт
 }, 1000);
 
 
@@ -1544,49 +1764,36 @@ function showNextAchToast(){
 
 
 /* =========================================================================
-   ЧАСТЬ 11.6. ЕЖЕДНЕВНЫЙ БОНУС — стрик по календарным дням. Награда растёт
-   с длиной стрика (капается на 7 день, дальше держится на максимуме, чтобы
-   цифры не разъезжались до бесконечности).
+   ЧАСТЬ 11.6. БОНУС ЗА ВРЕМЯ В ИГРЕ — раз в PLAYTIME_REWARD_SECONDS активных
+   секунд (тикает только пока вкладка открыта и не свёрнута — см. часть 9,
+   тот же тик что и у пассивного дохода) всплывает плашка с наградой.
+   Повторяется бесконечно, пока идёт сессия. Награда считается той же
+   формулой, что и пачка сахарков за рекламу (честно масштабируется под
+   прогресс), но с множителем х3 — 10 минут ожидания весомее одного тапа
+   по рекламе.
    ========================================================================= */
-function todayKey(){
-  const d = new Date();
-  return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+const PLAYTIME_REWARD_SECONDS = 600; // 10 минут
+
+function playtimeRewardAmount(){
+  return coinsPackAmount() * 3;
 }
 
-function dailyRewardFor(streakDay){
-  const day = Math.min(streakDay, 7);
-  return 50 * day; // день1=50, день2=100 ... день7=350, дальше держится на 350
-}
-
-function checkDailyBonus(){
-  const today = todayKey();
-  if (state.lastClaimDay === today) return; // уже забирал сегодня
-
-  // Если пропустил день (разрыв больше 1 календарного дня) — стрик обнуляется
-  if (state.lastClaimDay){
-    const prev = new Date(state.lastClaimDay.replace(/-/g, '/'));
-    const diffDays = Math.round((new Date(today.replace(/-/g,'/')) - prev) / 86400000);
-    if (diffDays > 1) state.dailyStreak = 0;
-  }
-
+function showPlaytimeBonus(){
   state.dailyPending = true;
-  const nextStreak = state.dailyStreak + 1;
-  const reward = dailyRewardFor(nextStreak);
-  el.dailyToastSub.textContent = L.dailySub.replace('{n}', nextStreak) + ' +' + fmt(reward) + ' 🍬';
+  const reward = playtimeRewardAmount();
+  el.dailyToastSub.textContent = L.dailySub + ' +' + fmt(reward) + ' 🍬';
   el.dailyToastTitle.textContent = L.dailyTitle;
   el.dailyToastClaim.textContent = L.dailyClaim;
   el.dailyToast.classList.add('show');
 }
 
 el.dailyToastClaim.addEventListener('click', function(){
-  const today = todayKey();
-  const nextStreak = state.dailyStreak + 1;
-  const reward = dailyRewardFor(nextStreak);
+  const reward = playtimeRewardAmount();
 
   state.balance += reward;
   state.totalEarned += reward;
-  state.dailyStreak = nextStreak;
-  state.lastClaimDay = today;
+  state.playSecondsAccum = 0; // таймер стартует заново до следующего бонуса
+  state.playtimeRewardsClaimed += 1;
   state.dailyPending = false;
 
   SoundEngine.playFanfare();
@@ -1666,8 +1873,8 @@ el.resetConfirmYes.addEventListener('click', function(){
   state.startedAt = Date.now();
   state.doubleIncomeUntil = 0;
   state.maxCombo = 0;
-  state.dailyStreak = 0;
-  state.lastClaimDay = null;
+  state.playSecondsAccum = 0;
+  state.playtimeRewardsClaimed = 0;
   state.dailyPending = false;
   state.unlockedAch = {};
   state.upgrades.tapPower.level = 0;
@@ -1701,8 +1908,12 @@ function boot(){
       checkAchievements(); // на случай если офлайн-доход уже выполнил условие ачивки
 
       // Небольшая задержка, чтобы плашка бонуса не наскакивала на анимацию
-      // загрузки — сначала пусть человек увидит саму игру
-      setTimeout(checkDailyBonus, 700);
+      // загрузки. Показываем только если счётчик уже был на пороге в момент
+      // закрытия вкладки в прошлый раз (не успел забрать) — обычный отсчёт
+      // 10 минут запустится и без этого через общий тик (часть 9)
+      if (state.playSecondsAccum >= PLAYTIME_REWARD_SECONDS){
+        setTimeout(showPlaytimeBonus, 700);
+      }
 
       // Обязательный вызов по требованиям SDK — сообщаем, что игра готова
       YandexIntegration.gameReady();
